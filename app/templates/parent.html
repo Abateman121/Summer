@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Parent Dashboard — Summer{% endblock %}
+{% block body_class %}page-parent{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>👪 Parent Dashboard</h1>
+  <p class="muted">Award points, redeem rewards, manage everything.</p>
+  <nav class="admin-nav">
+    <a href="/parent" class="active">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">✨ Mark a chore complete</h2>
+  {% if not active_chores %}
+    <p class="muted">No active chores. <a href="/parent/chores">Add some first →</a></p>
+  {% elif not kids %}
+    <p class="muted">No kids yet. <a href="/parent/kids">Add a kid first →</a></p>
+  {% else %}
+    <form method="post" action="/parent/complete-chore" class="quick-form">
+      <div class="form-row">
+        <label for="cc-kid">Kid</label>
+        <select name="kid_id" id="cc-kid" required>
+          {% for k in kids %}
+            <option value="{{ k.id }}">{{ k.avatar_emoji }} {{ k.name }} ({{ balances.get(k.id, 0) }} pts)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="cc-chore">Chore</label>
+        <select name="chore_id" id="cc-chore" required>
+          {% for c in active_chores %}
+            <option value="{{ c.id }}">{{ c.name }} — {{ c.points }} pts</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="cc-note">Note (optional)</label>
+        <input type="text" name="note" id="cc-note" maxlength="256" placeholder="Did an extra-good job">
+      </div>
+      <button type="submit" class="btn btn-primary">Award points</button>
+    </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">🎁 Redeem a reward</h2>
+  {% if not active_rewards %}
+    <p class="muted">No active rewards. <a href="/parent/rewards">Add some first →</a></p>
+  {% elif not kids %}
+    <p class="muted">No kids yet. <a href="/parent/kids">Add a kid first →</a></p>
+  {% else %}
+    <form method="post" action="/parent/redeem" class="quick-form">
+      <div class="form-row">
+        <label for="rd-kid">Kid</label>
+        <select name="kid_id" id="rd-kid" required>
+          {% for k in kids %}
+            <option value="{{ k.id }}">{{ k.avatar_emoji }} {{ k.name }} ({{ balances.get(k.id, 0) }} pts)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="rd-reward">Reward</label>
+        <select name="reward_id" id="rd-reward" required>
+          {% for r in active_rewards %}
+            <option value="{{ r.id }}">{{ r.emoji }} {{ r.name }} — {{ r.cost }} pts</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="rd-note">Note (optional)</label>
+        <input type="text" name="note" id="rd-note" maxlength="256" placeholder="On Saturday">
+      </div>
+      <button type="submit" class="btn btn-reward">Redeem</button>
+    </form>
+  {% endif %}
+</section>
+
+{% endblock %}

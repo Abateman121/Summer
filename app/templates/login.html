@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Parent Login — Summer{% endblock %}
+{% block content %}
+
+<section class="login-card">
+  <h1>👪 Parent Login</h1>
+  <p class="muted">Enter your PIN to manage kids, chores, and rewards.</p>
+
+  <form method="post" action="/login" class="login-form">
+    <label for="pin" class="sr-only">PIN</label>
+    <input
+      type="password"
+      name="pin"
+      id="pin"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      autocomplete="current-password"
+      placeholder="Enter PIN"
+      required
+      autofocus
+      class="pin-input"
+    >
+    <button type="submit" class="btn btn-primary btn-large">Unlock</button>
+  </form>
+  <p class="muted small">Default PIN is <code>1234</code> — change it in <code>.env</code>.</p>
+</section>
+
+{% endblock %}

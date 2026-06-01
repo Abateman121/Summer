@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Chore Catalog — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>📋 Chore Catalog</h1>
+  <p class="muted">Here's everything you can earn points for. Pick one and get to work!</p>
+</header>
+
+{% if grouped_chores %}
+  {% for cat in categories %}
+    {% if grouped_chores.get(cat.id) %}
+      <section class="card">
+        <h2 class="section-title">{{ cat.emoji }} {{ cat.name }}</h2>
+        <ul class="chore-list">
+          {% for chore in grouped_chores[cat.id] %}
+            <li class="chore-row">
+              <div class="chore-info">
+                <div class="chore-name">{{ chore.name }}</div>
+                {% if chore.description %}<div class="chore-desc">{{ chore.description }}</div>{% endif %}
+              </div>
+              <div class="chore-pts">{{ chore.points }} <span class="pts">pts</span></div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  {% endfor %}
+  {% if grouped_chores.get(None) %}
+    <section class="card">
+      <h2 class="section-title">⭐ Other</h2>
+      <ul class="chore-list">
+        {% for chore in grouped_chores.get(None, []) %}
+          <li class="chore-row">
+            <div class="chore-info">
+              <div class="chore-name">{{ chore.name }}</div>
+              {% if chore.description %}<div class="chore-desc">{{ chore.description }}</div>{% endif %}
+            </div>
+            <div class="chore-pts">{{ chore.points }} <span class="pts">pts</span></div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+{% else %}
+  <p class="empty-state">No active chores yet. A parent needs to add some.</p>
+{% endif %}
+
+{% endblock %}

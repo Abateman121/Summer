@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Summer — Home{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1 class="hero-title">Summer Points</h1>
+  <p class="hero-sub">{{ week_label() }}</p>
+</section>
+
+{% if leaderboard %}
+<section class="leaderboard">
+  <h2 class="section-title">🏆 Leaderboard</h2>
+  <ol class="leaderboard-list">
+    {% for entry in leaderboard[:3] %}
+      <li class="leader-row leader-row-{{ entry.rank }}" style="--kid-color: {{ entry.kid.color }}">
+        <span class="leader-medal">{{ entry.medal }}</span>
+        <span class="leader-avatar">{{ entry.kid.avatar_emoji }}</span>
+        <a class="leader-name" href="/kid/{{ entry.kid.id }}">{{ entry.kid.name }}</a>
+        <span class="leader-pts">{{ entry.balance }} pts</span>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+{% else %}
+<section class="empty-state">
+  <h2>Welcome! 👋</h2>
+  <p>No kids added yet. A parent can <a href="/login">log in</a> to add some.</p>
+</section>
+{% endif %}
+
+{% if leaderboard|length > 0 %}
+<section class="kids-grid">
+  <h2 class="section-title">All Kids</h2>
+  <div class="grid">
+    {% for entry in leaderboard %}
+      <a class="kid-card" href="/kid/{{ entry.kid.id }}" style="--kid-color: {{ entry.kid.color }}">
+        <div class="kid-card-top">
+          <span class="kid-avatar">{{ entry.kid.avatar_emoji }}</span>
+          <span class="kid-rank">#{{ entry.rank }}{% if entry.medal %} {{ entry.medal }}{% endif %}</span>
+        </div>
+        <div class="kid-name">{{ entry.kid.name }}</div>
+        <div class="kid-balance">{{ entry.balance }} <span class="pts">pts</span></div>
+        <div class="kid-weekly">
+          +{{ weekly_earned.get(entry.kid.id, 0) }} this week
+          {% if weekly_spent.get(entry.kid.id, 0) %}
+            &middot; -{{ weekly_spent.get(entry.kid.id, 0) }} redeemed
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

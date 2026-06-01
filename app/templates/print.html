@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Summer — {{ week_label() }} Summary</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/print.css">
+</head>
+<body class="print-page">
+  <header class="print-header">
+    <h1>☀️ Summer Chores — {{ week_label() }}</h1>
+    <button class="print-button no-print" onclick="window.print()">🖨️ Print</button>
+  </header>
+
+  {% if not kids %}
+    <p>No kids to show.</p>
+  {% endif %}
+
+  {% for kid in kids %}
+    <section class="print-kid" style="--kid-color: {{ kid.color }}">
+      <header class="print-kid-header">
+        <span class="print-avatar">{{ kid.avatar_emoji }}</span>
+        <h2>{{ kid.name }}</h2>
+        <div class="print-balance">{{ balances.get(kid.id, 0) }} pts</div>
+      </header>
+
+      <div class="print-totals">
+        <span><strong>This week earned:</strong> +{{ weekly_earned.get(kid.id, 0) }}</span>
+        <span><strong>Redeemed:</strong> -{{ weekly_spent.get(kid.id, 0) }}</span>
+      </div>
+
+      <div class="print-columns">
+        <div class="print-col">
+          <h3>✅ Chores done</h3>
+          {% set kids_completions = this_week_completions.get(kid.id, []) %}
+          {% if kids_completions %}
+            <ul class="print-list">
+              {% for c in kids_completions %}
+                <li>
+                  <span class="print-date">{{ c.completed_at | humantime }}</span>
+                  <span class="print-name">{{ c.chore.name }}</span>
+                  <span class="print-pts">+{{ c.points_earned }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="print-muted">No chores yet this week.</p>
+          {% endif %}
+        </div>
+
+        <div class="print-col">
+          <h3>🎁 Rewards redeemed</h3>
+          {% set kids_redemptions = this_week_redemptions.get(kid.id, []) %}
+          {% if kids_redemptions %}
+            <ul class="print-list">
+              {% for r in kids_redemptions %}
+                <li>
+                  <span class="print-date">{{ r.redeemed_at | humantime }}</span>
+                  <span class="print-name">{{ r.reward.emoji }} {{ r.reward.name }}</span>
+                  <span class="print-pts print-pts-spend">-{{ r.points_spent }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="print-muted">No rewards redeemed this week.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endfor %}
+
+  <footer class="print-footer">
+    <p>Great work this week! Keep it up! 🌟</p>
+  </footer>
+</body>
+</html>

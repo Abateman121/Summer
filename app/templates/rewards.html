@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Manage Rewards — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>🎁 Rewards</h1>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/rewards" class="active">Rewards</a>
+    <a href="/parent/history">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">➕ Add a reward</h2>
+  <form method="post" action="/parent/rewards/add" class="inline-form">
+    <div class="form-row">
+      <label for="rw-name">Name</label>
+      <input type="text" name="name" id="rw-name" required maxlength="128" placeholder="e.g. Ice cream trip">
+    </div>
+    <div class="form-row">
+      <label for="rw-cost">Cost (points)</label>
+      <input type="number" name="cost" id="rw-cost" required min="1" max="9999" value="30">
+    </div>
+    <div class="form-row">
+      <label for="rw-emoji">Emoji</label>
+      <input type="text" name="emoji" id="rw-emoji" maxlength="8" value="🎁">
+    </div>
+    <div class="form-row">
+      <label for="rw-desc">Description (optional)</label>
+      <input type="text" name="description" id="rw-desc" maxlength="500" placeholder="Trip to the ice cream shop">
+    </div>
+    <button type="submit" class="btn btn-primary">Add reward</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title">Current rewards</h2>
+  {% if rewards %}
+    <ul class="manage-list">
+      {% for r in rewards %}
+        <li class="manage-row {% if not r.is_active %}manage-inactive{% endif %}">
+          <details class="manage-edit">
+            <summary class="manage-summary">
+              <span class="manage-avatar">{{ r.emoji }}</span>
+              <span class="manage-name">{{ r.name }}</span>
+              <span class="manage-balance">{{ r.cost }} pts</span>
+              {% if not r.is_active %}<span class="badge-tag badge-inactive">paused</span>{% endif %}
+              <span class="manage-chevron">✏️</span>
+            </summary>
+            <form method="post" action="/parent/rewards/{{ r.id }}/edit" class="inline-form">
+              <div class="form-row">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ r.name }}" required maxlength="128">
+              </div>
+              <div class="form-row">
+                <label>Cost (points)</label>
+                <input type="number" name="cost" value="{{ r.cost }}" required min="1" max="9999">
+              </div>
+              <div class="form-row">
+                <label>Emoji</label>
+                <input type="text" name="emoji" value="{{ r.emoji }}" maxlength="8">
+              </div>
+              <div class="form-row">
+                <label>Description</label>
+                <input type="text" name="description" value="{{ r.description }}" maxlength="500">
+              </div>
+              <div class="form-row form-row-checkbox">
+                <label>
+                  <input type="checkbox" name="is_active" {% if r.is_active %}checked{% endif %}>
+                  Active
+                </label>
+              </div>
+              <div class="row-actions">
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+            <form method="post" action="/parent/rewards/{{ r.id }}/delete"
+                  onsubmit="return confirm('Delete reward {{ r.name }}? Past redemptions stay in history.')"
+                  class="delete-form">
+              <button type="submit" class="btn btn-danger">🗑️ Delete reward</button>
+            </form>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No rewards yet — add your first one above.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

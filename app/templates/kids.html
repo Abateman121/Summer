@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Manage Kids — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>👶 Kids</h1>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids" class="active">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">➕ Add a kid</h2>
+  <form method="post" action="/parent/kids/add" class="inline-form">
+    <div class="form-row">
+      <label for="k-name">Name</label>
+      <input type="text" name="name" id="k-name" required maxlength="64" placeholder="e.g. Jordan">
+    </div>
+    <div class="form-row">
+      <label for="k-emoji">Avatar emoji</label>
+      <input type="text" name="avatar_emoji" id="k-emoji" maxlength="8" placeholder="🙂">
+    </div>
+    <div class="form-row">
+      <label for="k-color">Card color</label>
+      <input type="color" name="color" id="k-color" value="#3b82f6">
+    </div>
+    <button type="submit" class="btn btn-primary">Add kid</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title">Current kids</h2>
+  {% if kids %}
+    <ul class="manage-list">
+      {% for k in kids %}
+        <li class="manage-row" style="--kid-color: {{ k.color }}">
+          <details class="manage-edit">
+            <summary class="manage-summary">
+              <span class="manage-avatar">{{ k.avatar_emoji }}</span>
+              <span class="manage-name">{{ k.name }}</span>
+              <span class="manage-balance">{{ balances.get(k.id, 0) }} pts</span>
+              <span class="manage-chevron">✏️</span>
+            </summary>
+            <form method="post" action="/parent/kids/{{ k.id }}/edit" class="inline-form">
+              <div class="form-row">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ k.name }}" required maxlength="64">
+              </div>
+              <div class="form-row">
+                <label>Avatar emoji</label>
+                <input type="text" name="avatar_emoji" value="{{ k.avatar_emoji }}" maxlength="8">
+              </div>
+              <div class="form-row">
+                <label>Card color</label>
+                <input type="color" name="color" value="{{ k.color }}">
+              </div>
+              <div class="row-actions">
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+            <form method="post" action="/parent/kids/{{ k.id }}/delete"
+                  onsubmit="return confirm('Delete {{ k.name }}? This wipes their points history too.')"
+                  class="delete-form">
+              <button type="submit" class="btn btn-danger">🗑️ Delete kid</button>
+            </form>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No kids yet — add your first one above.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

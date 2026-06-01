@@ -1,0 +1,109 @@
+/* ==========================================================================
+   Print stylesheet — applied on /print
+   Hides nav/bottombar, lays out kids cleanly on paper.
+   ========================================================================== */
+
+@page {
+  size: letter portrait;
+  margin: 0.5in;
+}
+
+body.print-page {
+  background: white;
+  color: black;
+  padding: 0;
+  font-size: 11pt;
+}
+
+.no-print { display: block; }
+
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #f59e0b;
+  padding-bottom: 8px;
+  margin-bottom: 18px;
+}
+.print-header h1 {
+  font-size: 18pt;
+  margin: 0;
+}
+
+.print-kid {
+  border: 2px solid var(--kid-color, #3b82f6);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.print-kid-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.print-avatar { font-size: 1.5rem; }
+.print-kid-header h2 {
+  font-size: 16pt;
+  margin: 0;
+  flex: 1;
+}
+.print-balance {
+  font-size: 16pt;
+  font-weight: 800;
+  color: var(--kid-color, #3b82f6);
+}
+
+.print-totals {
+  display: flex;
+  gap: 18px;
+  font-size: 10pt;
+  margin-bottom: 10px;
+  color: #555;
+}
+
+.print-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.print-col h3 {
+  font-size: 11pt;
+  margin: 0 0 4px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 2px;
+}
+.print-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 9.5pt;
+}
+.print-list li {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  gap: 6px;
+  padding: 2px 0;
+  border-bottom: 1px dotted #e5e7eb;
+}
+.print-date { color: #777; font-size: 8.5pt; }
+.print-pts { font-weight: 700; }
+.print-pts-spend { color: #b91c1c; }
+.print-muted { color: #999; font-style: italic; font-size: 9pt; margin: 0; }
+
+.print-footer {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 10pt;
+  color: #777;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body.print-page { padding: 0; }
+}

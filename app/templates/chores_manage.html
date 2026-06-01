@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Manage Chores — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>📋 Chores</h1>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores" class="active">Chores</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">➕ Add a chore</h2>
+  <form method="post" action="/parent/chores/add" class="inline-form">
+    <div class="form-row">
+      <label for="ch-name">Name</label>
+      <input type="text" name="name" id="ch-name" required maxlength="128" placeholder="e.g. Vacuum the living room">
+    </div>
+    <div class="form-row">
+      <label for="ch-points">Points</label>
+      <input type="number" name="points" id="ch-points" required min="1" max="999" value="10">
+    </div>
+    <div class="form-row">
+      <label for="ch-cat">Category</label>
+      <select name="category_id" id="ch-cat">
+        <option value="0">— None —</option>
+        {% for c in categories %}
+          <option value="{{ c.id }}">{{ c.emoji }} {{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="ch-desc">Description (optional)</label>
+      <input type="text" name="description" id="ch-desc" maxlength="500" placeholder="Any extra context">
+    </div>
+    <button type="submit" class="btn btn-primary">Add chore</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title">Current chores</h2>
+  {% if chores %}
+    <ul class="manage-list">
+      {% for c in chores %}
+        <li class="manage-row {% if not c.is_active %}manage-inactive{% endif %}">
+          <details class="manage-edit">
+            <summary class="manage-summary">
+              <span class="manage-avatar">{{ c.category.emoji if c.category else '⭐' }}</span>
+              <span class="manage-name">{{ c.name }}</span>
+              <span class="manage-balance">{{ c.points }} pts</span>
+              {% if not c.is_active %}<span class="badge-tag badge-inactive">paused</span>{% endif %}
+              <span class="manage-chevron">✏️</span>
+            </summary>
+            <form method="post" action="/parent/chores/{{ c.id }}/edit" class="inline-form">
+              <div class="form-row">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ c.name }}" required maxlength="128">
+              </div>
+              <div class="form-row">
+                <label>Points</label>
+                <input type="number" name="points" value="{{ c.points }}" required min="1" max="999">
+              </div>
+              <div class="form-row">
+                <label>Category</label>
+                <select name="category_id">
+                  <option value="0" {% if not c.category_id %}selected{% endif %}>— None —</option>
+                  {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if c.category_id == cat.id %}selected{% endif %}>{{ cat.emoji }} {{ cat.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Description</label>
+                <input type="text" name="description" value="{{ c.description }}" maxlength="500">
+              </div>
+              <div class="form-row form-row-checkbox">
+                <label>
+                  <input type="checkbox" name="is_active" {% if c.is_active %}checked{% endif %}>
+                  Active (uncheck to pause this chore)
+                </label>
+              </div>
+              <div class="row-actions">
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+            <form method="post" action="/parent/chores/{{ c.id }}/delete"
+                  onsubmit="return confirm('Delete chore {{ c.name }}? Past completions stay in history.')"
+                  class="delete-form">
+              <button type="submit" class="btn btn-danger">🗑️ Delete chore</button>
+            </form>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No chores yet — add your first one above.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

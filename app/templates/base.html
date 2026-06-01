@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f59e0b">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/static/icons/icon-192.png">
+  <title>{% block title %}Summer{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-emoji">☀️</span>
+      <span class="brand-text">Summer</span>
+    </a>
+    <nav class="topnav">
+      <a href="/chores">Chores</a>
+      <a href="/print">Print</a>
+      {% if is_parent %}
+        <a href="/parent" class="nav-admin">Parent</a>
+        <a href="/logout" class="nav-logout">Log out</a>
+      {% else %}
+        <a href="/login" class="nav-admin">Parent</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  {% if msg %}
+    <div class="flash flash-msg" role="status">{{ msg }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="flash flash-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <nav class="bottombar" aria-label="Quick navigation">
+    <a href="/">
+      <span class="bb-icon">🏠</span><span>Home</span>
+    </a>
+    <a href="/chores">
+      <span class="bb-icon">📋</span><span>Chores</span>
+    </a>
+    <a href="/print">
+      <span class="bb-icon">🖨️</span><span>Print</span>
+    </a>
+    <a href="{% if is_parent %}/parent{% else %}/login{% endif %}">
+      <span class="bb-icon">👪</span><span>Parent</span>
+    </a>
+  </nav>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ kid.name }} — Summer{% endblock %}
+{% block content %}
+
+<header class="kid-header" style="--kid-color: {{ kid.color }}">
+  <a href="/" class="back-link">← Back</a>
+  <div class="kid-hero">
+    <div class="kid-hero-avatar">{{ kid.avatar_emoji }}</div>
+    <h1 class="kid-hero-name">{{ kid.name }}</h1>
+  </div>
+  <div class="kid-stats">
+    <div class="stat">
+      <div class="stat-num">{{ balance }}</div>
+      <div class="stat-label">points</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">{{ lifetime_earned }}</div>
+      <div class="stat-label">lifetime earned</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">🔥 {{ streak }}</div>
+      <div class="stat-label">day streak</div>
+    </div>
+  </div>
+</header>
+
+<section class="card">
+  <h2 class="section-title">🎖️ Achievements</h2>
+  <div class="badges">
+    {% for b in badges %}
+      <div class="badge {% if b.earned %}badge-earned{% else %}badge-locked{% endif %}"
+           title="{{ b.description }}{% if b.earned and b.earned_at %} (Earned {{ b.earned_at | humantime }}){% endif %}">
+        <div class="badge-emoji">{{ b.emoji }}</div>
+        <div class="badge-name">{{ b.name }}</div>
+        <div class="badge-desc">{{ b.description }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="section-title">✅ Recent Chores</h2>
+  {% if completions %}
+    <ul class="timeline">
+      {% for c in completions %}
+        <li class="timeline-item timeline-earn">
+          <span class="timeline-emoji">✨</span>
+          <div class="timeline-body">
+            <div class="timeline-title">
+              {{ c.chore.name }} <span class="timeline-pts">+{{ c.points_earned }} pts</span>
+            </div>
+            <div class="timeline-meta">{{ c.completed_at | humantime }}{% if c.note %} — {{ c.note }}{% endif %}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No chores completed yet. Get to work! 💪</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">🎁 Redemptions</h2>
+  {% if redemptions %}
+    <ul class="timeline">
+      {% for r in redemptions %}
+        <li class="timeline-item timeline-spend">
+          <span class="timeline-emoji">{{ r.reward.emoji }}</span>
+          <div class="timeline-body">
+            <div class="timeline-title">
+              {{ r.reward.name }} <span class="timeline-pts timeline-pts-spend">-{{ r.points_spent }} pts</span>
+            </div>
+            <div class="timeline-meta">{{ r.redeemed_at | humantime }}{% if r.note %} — {{ r.note }}{% endif %}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No rewards redeemed yet — keep stacking those points!</p>
+  {% endif %}
+</section>
+
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Activity History — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>📜 Activity History</h1>
+  <p class="muted">Most recent 200 events of each type.</p>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history" class="active">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">✅ Chore Completions</h2>
+  {% if completions %}
+    <table class="history-table">
+      <thead>
+        <tr><th>When</th><th>Kid</th><th>Chore</th><th>Points</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for c in completions %}
+          <tr>
+            <td class="when">{{ c.completed_at | humantime }}</td>
+            <td>{{ kids[c.kid_id].avatar_emoji }} {{ kids[c.kid_id].name }}</td>
+            <td>{{ c.chore.name }}</td>
+            <td class="pts-earn">+{{ c.points_earned }}</td>
+            <td class="note">{{ c.note or '' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No completions yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">🎁 Reward Redemptions</h2>
+  {% if redemptions %}
+    <table class="history-table">
+      <thead>
+        <tr><th>When</th><th>Kid</th><th>Reward</th><th>Cost</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for r in redemptions %}
+          <tr>
+            <td class="when">{{ r.redeemed_at | humantime }}</td>
+            <td>{{ kids[r.kid_id].avatar_emoji }} {{ kids[r.kid_id].name }}</td>
+            <td>{{ r.reward.emoji }} {{ r.reward.name }}</td>
+            <td class="pts-spend">-{{ r.points_spent }}</td>
+            <td class="note">{{ r.note or '' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No redemptions yet.</p>
+  {% endif %}
+</section>
+
+{% endblock %}
