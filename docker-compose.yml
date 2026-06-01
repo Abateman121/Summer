@@ -9,13 +9,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - summer_data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-volumes:
-  summer_data:

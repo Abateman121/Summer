@@ -8,8 +8,9 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# Default to a local file inside ./data. The Docker compose file overrides this
-# to a path on the named volume so data survives container restarts.
+# Default to a local file inside ./data. The Docker compose file pins this to
+# a fixed path inside the container, and bind-mounts ./data from the host so
+# the SQLite file survives container restarts.
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "summer.db"
 _DEFAULT_DB_URL = f"sqlite:///{_DEFAULT_DB_PATH}"
 

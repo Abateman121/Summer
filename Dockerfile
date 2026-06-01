@@ -12,10 +12,6 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy the app
 COPY app /app
 
-# Persistent data dir for the SQLite database
-RUN mkdir -p /app/data
-VOLUME ["/app/data"]
-
 EXPOSE 8000
 
 # Allow the host to override the bind address/port via env

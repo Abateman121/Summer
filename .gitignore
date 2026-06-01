@@ -14,7 +14,8 @@ __pycache__/
 venv/
 env/
 
-data/
+data/*
+!data/.gitkeep
 *.log
 
 .DS_Store
