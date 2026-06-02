@@ -29,4 +29,45 @@
       this.value = this.value.replace(/\D/g, "").slice(0, 12);
     });
   }
+
+  // Dark mode toggle. The inline script in base.html applies the persisted
+  // theme synchronously before paint; here we handle the click and persist.
+  var themeBtn = document.querySelector(".theme-toggle");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", function () {
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if (isDark) {
+        document.documentElement.removeAttribute("data-theme");
+        try { localStorage.setItem("summer-theme", "light"); } catch (e) {}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try { localStorage.setItem("summer-theme", "dark"); } catch (e) {}
+      }
+    });
+  }
+
+  // Emoji picker for the /parent/kids forms. Each form with [data-emoji-form]
+  // contains a hidden <input name="avatar_emoji"> and a grid of buttons;
+  // clicking a button sets the hidden input and marks the button selected.
+  document.querySelectorAll("[data-emoji-form]").forEach(function (form) {
+    var hidden = form.querySelector('input[name="avatar_emoji"]');
+    if (!hidden) return;
+    var buttons = form.querySelectorAll(".emoji-option");
+
+    function setSelected(emoji) {
+      buttons.forEach(function (btn) {
+        var match = btn.getAttribute("data-emoji") === emoji;
+        btn.classList.toggle("selected", match);
+        btn.setAttribute("aria-checked", match ? "true" : "false");
+      });
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var emoji = btn.getAttribute("data-emoji");
+        hidden.value = emoji;
+        setSelected(emoji);
+      });
+    });
+  });
 })();

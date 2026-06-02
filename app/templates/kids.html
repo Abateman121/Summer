@@ -15,14 +15,22 @@
 
 <section class="card">
   <h2 class="section-title">➕ Add a kid</h2>
-  <form method="post" action="/parent/kids/add" class="inline-form">
+  <form method="post" action="/parent/kids/add" class="inline-form" data-emoji-form>
     <div class="form-row">
       <label for="k-name">Name</label>
       <input type="text" name="name" id="k-name" required maxlength="64" placeholder="e.g. Jordan">
     </div>
     <div class="form-row">
-      <label for="k-emoji">Avatar emoji</label>
-      <input type="text" name="avatar_emoji" id="k-emoji" maxlength="8" placeholder="🙂">
+      <label>Avatar</label>
+      <input type="hidden" name="avatar_emoji" value="{{ kid_avatars[0] }}">
+      <div class="emoji-picker" role="radiogroup" aria-label="Choose avatar emoji">
+        {% for emoji in kid_avatars %}
+          <button type="button" class="emoji-option {% if loop.first %}selected{% endif %}"
+                  data-emoji="{{ emoji }}" role="radio"
+                  aria-checked="{{ 'true' if loop.first else 'false' }}"
+                  aria-label="Avatar {{ emoji }}">{{ emoji }}</button>
+        {% endfor %}
+      </div>
     </div>
     <div class="form-row">
       <label for="k-color">Card color</label>
@@ -45,14 +53,22 @@
               <span class="manage-balance">{{ balances.get(k.id, 0) }} pts</span>
               <span class="manage-chevron">✏️</span>
             </summary>
-            <form method="post" action="/parent/kids/{{ k.id }}/edit" class="inline-form">
+            <form method="post" action="/parent/kids/{{ k.id }}/edit" class="inline-form" data-emoji-form>
               <div class="form-row">
                 <label>Name</label>
                 <input type="text" name="name" value="{{ k.name }}" required maxlength="64">
               </div>
               <div class="form-row">
-                <label>Avatar emoji</label>
-                <input type="text" name="avatar_emoji" value="{{ k.avatar_emoji }}" maxlength="8">
+                <label>Avatar</label>
+                <input type="hidden" name="avatar_emoji" value="{{ k.avatar_emoji }}">
+                <div class="emoji-picker" role="radiogroup" aria-label="Choose avatar emoji">
+                  {% for emoji in kid_avatars %}
+                    <button type="button" class="emoji-option {% if emoji == k.avatar_emoji %}selected{% endif %}"
+                            data-emoji="{{ emoji }}" role="radio"
+                            aria-checked="{{ 'true' if emoji == k.avatar_emoji else 'false' }}"
+                            aria-label="Avatar {{ emoji }}">{{ emoji }}</button>
+                  {% endfor %}
+                </div>
               </div>
               <div class="form-row">
                 <label>Card color</label>

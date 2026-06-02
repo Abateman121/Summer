@@ -107,3 +107,30 @@ body.print-page {
   .no-print { display: none !important; }
   body.print-page { padding: 0; }
 }
+
+/* --------------------------------------------------------------------------
+   Pages that extend base.html (e.g. /rewards) need the chrome hidden on
+   print since base.html renders the topbar and bottombar.
+   -------------------------------------------------------------------------- */
+
+@media print {
+  .topbar,
+  .bottombar,
+  .flash,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    padding-bottom: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+  .rewards-page .reward-card {
+    box-shadow: none;
+    border: 1px solid #999;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .rewards-page h1 { color: black; }
+  .reward-cost { color: #b45309; }
+}

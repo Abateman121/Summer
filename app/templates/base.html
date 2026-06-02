@@ -8,6 +8,18 @@
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="/static/icons/icon-192.png">
   <title>{% block title %}Summer{% endblock %}</title>
+  <script>
+    // Apply persisted dark mode synchronously before paint to avoid a
+    // white flash. The toggle is in app.js; this only sets the attribute.
+    (function () {
+      try {
+        var t = localStorage.getItem("summer-theme");
+        if (t === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      } catch (e) { /* localStorage may be unavailable */ }
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
   {% block head_extra %}{% endblock %}
 </head>
@@ -18,7 +30,12 @@
       <span class="brand-text">Summer</span>
     </a>
     <nav class="topnav">
+      <button type="button" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <span class="theme-icon-light" aria-hidden="true">🌙</span>
+        <span class="theme-icon-dark" aria-hidden="true">☀️</span>
+      </button>
       <a href="/chores">Chores</a>
+      <a href="/rewards">Rewards</a>
       <a href="/print">Print</a>
       {% if is_parent %}
         <a href="/parent" class="nav-admin">Parent</a>
@@ -46,6 +63,9 @@
     </a>
     <a href="/chores">
       <span class="bb-icon">📋</span><span>Chores</span>
+    </a>
+    <a href="/rewards">
+      <span class="bb-icon">🎁</span><span>Rewards</span>
     </a>
     <a href="/print">
       <span class="bb-icon">🖨️</span><span>Print</span>

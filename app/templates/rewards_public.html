@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Rewards — Summer{% endblock %}
+{% block body_class %}rewards-page{% endblock %}
+{% block content %}
+
+<header class="page-header rewards-header">
+  <div>
+    <h1>🎁 Rewards</h1>
+    <p class="muted">Here's what you can save up for. Keep stacking those points!</p>
+  </div>
+  <button type="button" class="print-button no-print" onclick="window.print()">🖨️ Print</button>
+</header>
+
+{% if rewards %}
+  <div class="rewards-grid">
+    {% for r in rewards %}
+      <article class="card reward-card">
+        <div class="reward-emoji">{{ r.emoji }}</div>
+        <h2 class="reward-name">{{ r.name }}</h2>
+        {% if r.description %}<p class="reward-desc">{{ r.description }}</p>{% endif %}
+        <div class="reward-cost"><span class="reward-cost-num">{{ r.cost }}</span> <span class="pts">pts</span></div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty-state">No rewards yet. Ask a parent to add some!</p>
+{% endif %}
+
+{% endblock %}

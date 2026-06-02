@@ -28,6 +28,75 @@
   --content-pad: 16px;
 }
 
+/* --------------------------------------------------------------------------
+   Dark mode — toggled by setting [data-theme="dark"] on <html>.
+   Preference is persisted in localStorage by app.js; the inline script in
+   base.html sets the attribute before paint to prevent a white flash.
+   -------------------------------------------------------------------------- */
+
+:root[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --bg-card: #2a2a2a;
+  --text: #e5e7eb;
+  --text-muted: #9ca3af;
+  --border: #374151;
+  --primary: #fbbf24;
+  --primary-dark: #f59e0b;
+  --secondary: #60a5fa;
+  --success: #34d399;
+  --success-dark: #10b981;
+  --danger: #f87171;
+  --danger-dark: #ef4444;
+  --reward: #f472b6;
+  --reward-dark: #ec4899;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+:root[data-theme="dark"] .topbar {
+  background: linear-gradient(180deg, #1f1f1f 0%, #1a1a1a 100%);
+}
+:root[data-theme="dark"] .bottombar { background: var(--bg-card); }
+:root[data-theme="dark"] .topnav a:hover { background: rgba(255,255,255,0.05); }
+:root[data-theme="dark"] .form-row input[type="text"],
+:root[data-theme="dark"] .form-row input[type="number"],
+:root[data-theme="dark"] .form-row input[type="password"],
+:root[data-theme="dark"] .form-row select,
+:root[data-theme="dark"] .pin-input {
+  background: #1f1f1f;
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme="dark"] .form-row input[type="color"] {
+  background: #1f1f1f;
+}
+:root[data-theme="dark"] .flash-msg {
+  background: #064e3b;
+  color: #d1fae5;
+  border-color: #065f46;
+}
+:root[data-theme="dark"] .flash-error {
+  background: #7f1d1d;
+  color: #fee2e2;
+  border-color: #991b1b;
+}
+:root[data-theme="dark"] .leader-row-1,
+:root[data-theme="dark"] .leader-row-2,
+:root[data-theme="dark"] .leader-row-3 {
+  background: var(--bg-card);
+}
+:root[data-theme="dark"] .badge { background: #1f1f1f; }
+:root[data-theme="dark"] .badge-earned {
+  background: linear-gradient(135deg, #422006 0%, #2a2a2a 100%);
+}
+:root[data-theme="dark"] .manage-row { background: var(--bg-card); }
+:root[data-theme="dark"] .manage-summary:hover { background: rgba(255,255,255,0.04); }
+:root[data-theme="dark"] .emoji-option { background: var(--bg-card); }
+:root[data-theme="dark"] .emoji-option:hover { background: rgba(255,255,255,0.06); }
+:root[data-theme="dark"] .emoji-option.selected { background: #422006; }
+:root[data-theme="dark"] .rewards-header h1 { color: var(--text); }
+:root[data-theme="dark"] .reward-cost { color: var(--primary); }
+
 * {
   box-sizing: border-box;
 }
@@ -138,7 +207,7 @@ code {
   right: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: white;
   border-top: 1px solid var(--border);
   height: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0));
@@ -633,3 +702,110 @@ code {
   cursor: pointer;
 }
 .print-button:hover { background: var(--primary-dark); }
+
+/* --------------------------------------------------------------------------
+   Theme toggle (in topbar)
+   -------------------------------------------------------------------------- */
+
+.theme-toggle {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 1.15rem;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  color: var(--text);
+}
+.theme-toggle:hover { background: #fef3c7; }
+:root[data-theme="dark"] .theme-toggle:hover { background: rgba(255,255,255,0.08); }
+.theme-toggle .theme-icon-dark { display: none; }
+:root[data-theme="dark"] .theme-toggle .theme-icon-light { display: none; }
+:root[data-theme="dark"] .theme-toggle .theme-icon-dark { display: inline; }
+
+/* --------------------------------------------------------------------------
+   Emoji picker (used in /parent/kids forms)
+   -------------------------------------------------------------------------- */
+
+.emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+  padding: 8px;
+  background: #fffbeb;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.emoji-option {
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 6px 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.1s, background 0.1s;
+}
+.emoji-option:hover { background: #fef3c7; }
+.emoji-option:active { transform: scale(0.92); }
+.emoji-option.selected {
+  background: #fef3c7;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary) inset;
+}
+.emoji-option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Rewards public page (/rewards)
+   -------------------------------------------------------------------------- */
+
+.rewards-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rewards-header > div { flex: 1; min-width: 0; }
+
+.rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+.reward-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 16px;
+  border: 2px solid var(--primary);
+}
+.reward-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.reward-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--text);
+}
+.reward-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  flex: 1;
+}
+.reward-cost {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  margin-top: auto;
+}
+.reward-cost .pts { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }

@@ -112,6 +112,19 @@ def _week_label(now: datetime | None = None) -> str:
 templates.env.filters["humantime"] = _humanize_timedelta
 templates.env.globals["week_label"] = _week_label
 
+# Curated emoji set the parent can pick from for a kid's avatar. Roughly
+# grouped: mammals, bears, misc animals, mythical / dinos, sea / bugs, fun.
+# The first entry is the default for new kids (matches the existing seed).
+KID_AVATAR_CHOICES: list[str] = [
+    "🦊", "🦁", "🐯", "🐰", "🐱", "🐶", "🐕", "🐩",
+    "🐼", "🐨", "🐻", "🐻‍❄️",
+    "🐸", "🐵", "🐮", "🐷", "🦉", "🐢",
+    "🦄", "🐲", "🐉", "🦖", "🦕",
+    "🐬", "🐳", "🦋", "🐝", "🐙",
+    "⚡", "🌈", "🚀", "🤖",
+]
+templates.env.globals["kid_avatars"] = KID_AVATAR_CHOICES
+
 
 # ---------------------------------------------------------------------------
 # 2. Startup / shutdown
@@ -332,6 +345,21 @@ def chore_list(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
         categories=categories,
         grouped_chores=grouped,
     )
+
+
+@app.get("/rewards", response_class=HTMLResponse)
+def rewards_catalog(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    """Public kid-facing rewards catalog. Printable via the in-page button."""
+    rewards = (
+        db.execute(
+            select(models.Reward)
+            .where(models.Reward.is_active.is_(True))
+            .order_by(models.Reward.cost)
+        )
+        .scalars()
+        .all()
+    )
+    return _render(request, "rewards_public.html", db, rewards=rewards)
 
 
 @app.get("/print", response_class=HTMLResponse)
