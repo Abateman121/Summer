@@ -9,8 +9,9 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy the app
-COPY app /app
+# Copy the app package into /app/app/ (so it remains a proper Python
+# package — `uvicorn app.main:app` resolves to /app/app/main.py).
+COPY app /app/app
 
 EXPOSE 8000
 
