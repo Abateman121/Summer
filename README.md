@@ -35,6 +35,26 @@ dozen chores, and a handful of rewards. Edit them from the Parent area
 
 To stop: `docker compose down`. To wipe data: `docker compose down -v`.
 
+### Use the prebuilt image (faster startup, no build step)
+
+Every push to `main` builds and publishes a Docker image to
+[GitHub Container Registry](https://github.com/Abateman121/Summer/pkgs/container/summer).
+To skip the local `docker build` step:
+
+```bash
+docker compose pull        # fetch the latest image from ghcr.io
+docker compose up -d        # start (uses the pulled image)
+```
+
+`docker compose up` will pull `ghcr.io/abateman121/summer:latest` and only
+fall back to a local `build: .` if the pull fails — so the fast path is
+taken on the happy case, and `docker compose build` always builds locally
+for development.
+
+> **If your GitHub repo is private**, authenticate docker to ghcr.io first:
+> `docker login ghcr.io` with a [Personal Access Token](https://github.com/settings/tokens?type=beta)
+> that has `read:packages` scope. Public repos work anonymously.
+
 ---
 
 ## Run without Docker (for development)

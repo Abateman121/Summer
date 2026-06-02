@@ -1,7 +1,11 @@
 services:
   summer:
+    # `image:` makes `docker compose up` pull the prebuilt image from
+    # ghcr.io (fast). `build: .` is kept as a fallback for fresh checkouts
+    # before the workflow has run, offline use, and local development via
+    # `docker compose build`.
     build: .
-    image: summer:latest
+    image: ghcr.io/abateman121/summer:latest
     container_name: summer
     env_file: ./.env
     environment:
