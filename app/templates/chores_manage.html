@@ -88,8 +88,7 @@
               </div>
             </form>
             <form method="post" action="/parent/chores/{{ c.id }}/delete"
-                  onsubmit="return confirm('Delete chore {{ c.name }}? Past completions stay in history.')"
-                  class="delete-form">
+                  class="delete-form" data-confirm="Delete chore {{ c.name }}? Past completions stay in history.">
               <button type="submit" class="btn btn-danger">🗑️ Delete chore</button>
             </form>
           </details>

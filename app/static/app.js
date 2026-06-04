@@ -70,4 +70,16 @@
       });
     });
   });
+
+  // Confirm-before-delete. The inline onsubmit="return confirm(...)" pattern
+  // is unreliable on some mobile browsers (notably Brave on iOS/Android) when
+  // the form is nested inside a <details> element. Using a real submit event
+  // listener with preventDefault() is much more robust across browsers.
+  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+      if (!window.confirm(form.getAttribute("data-confirm"))) {
+        e.preventDefault();
+      }
+    });
+  });
 })();

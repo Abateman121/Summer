@@ -79,8 +79,7 @@
               </div>
             </form>
             <form method="post" action="/parent/kids/{{ k.id }}/delete"
-                  onsubmit="return confirm('Delete {{ k.name }}? This wipes their points history too.')"
-                  class="delete-form">
+                  class="delete-form" data-confirm="Delete {{ k.name }}? This wipes their points history too.">
               <button type="submit" class="btn btn-danger">🗑️ Delete kid</button>
             </form>
           </details>
