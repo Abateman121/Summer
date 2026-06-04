@@ -16,7 +16,7 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import (
@@ -712,7 +712,7 @@ def parent_chores_edit(
     points: Annotated[int, Form()],
     description: Annotated[str, Form()],
     category_id: Annotated[int, Form()],
-    is_active: Annotated[str, Form()] = "on",
+    is_active: Annotated[Optional[str], Form()] = None,
 ) -> RedirectResponse:
     db = SessionLocal()
     try:
@@ -792,7 +792,7 @@ def parent_rewards_edit(
     cost: Annotated[int, Form()],
     description: Annotated[str, Form()],
     emoji: Annotated[str, Form()],
-    is_active: Annotated[str, Form()] = "on",
+    is_active: Annotated[Optional[str], Form()] = None,
 ) -> RedirectResponse:
     db = SessionLocal()
     try:
