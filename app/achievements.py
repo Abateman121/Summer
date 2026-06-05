@@ -35,18 +35,31 @@ def to_local_date(dt: datetime) -> date:
     return dt.astimezone(_local_tz()).date()
 
 
+def _approved_only(
+    completions: list[models.ChoreCompletion],
+) -> list[models.ChoreCompletion]:
+    """Drop pending/denied rows. Points only count once a parent approves.
+
+    Denied rows are excluded as well — they're a record of what wasn't
+    done, not a record of earnings. Pending rows haven't been awarded
+    yet so they shouldn't be in the balance either.
+    """
+    return [c for c in completions if c.status == models.STATUS_APPROVED]
+
+
 def compute_balance(
     completions: list[models.ChoreCompletion],
     redemptions: list[models.RewardRedemption],
 ) -> int:
-    """Current point balance = lifetime earned - lifetime spent."""
-    earned = sum(c.points_earned for c in completions)
+    """Current point balance = lifetime earned (approved) - lifetime spent."""
+    approved = _approved_only(completions)
+    earned = sum(c.points_earned or 0 for c in approved)
     spent = sum(r.points_spent for r in redemptions)
     return earned - spent
 
 
 def compute_lifetime_earned(completions: list[models.ChoreCompletion]) -> int:
-    return sum(c.points_earned for c in completions)
+    return sum(c.points_earned or 0 for c in _approved_only(completions))
 
 
 def compute_streak(
@@ -61,7 +74,9 @@ def compute_streak(
     if today is None:
         today = datetime.now(_local_tz()).date()
 
-    days_with_completion = {to_local_date(c.completed_at) for c in completions}
+    days_with_completion = {
+        to_local_date(c.completed_at) for c in _approved_only(completions)
+    }
     if not days_with_completion:
         return 0
 
@@ -146,16 +161,22 @@ def compute_badges(
     completions: list[models.ChoreCompletion],
     redemptions: list[models.RewardRedemption],
 ) -> list[Badge]:
-    """Return the full badge list with earned / earned_at populated."""
+    """Return the full badge list with earned / earned_at populated.
+
+    Only approved completions count. Pending/denied rows are excluded so a
+    streak or a "first chore" badge can't be earned from an unapproved
+    request.
+    """
+    approved = _approved_only(completions)
     earned_total = compute_lifetime_earned(completions)
     streak = compute_streak(completions)
 
     # Per-day completion count for the "chore champion" badge
-    per_day = Counter(to_local_date(c.completed_at) for c in completions)
+    per_day = Counter(to_local_date(c.completed_at) for c in approved)
     max_chores_in_a_day = max(per_day.values(), default=0)
 
     first_completion_at = min(
-        (c.completed_at for c in completions), default=None
+        (c.completed_at for c in approved), default=None
     )
     first_redemption_at = min(
         (r.redeemed_at for r in redemptions), default=None
@@ -192,12 +213,12 @@ def compute_badges(
             # The completion that made the day reach 10
             earned_at = None
             if earned:
-                for c in sorted(completions, key=lambda c: c.completed_at):
+                for c in sorted(approved, key=lambda c: c.completed_at):
                     d = to_local_date(c.completed_at)
                     if per_day[d] >= 10:
                         # First completion of the day that hit 10
                         same_day = sorted(
-                            [x for x in completions if to_local_date(x.completed_at) == d],
+                            [x for x in approved if to_local_date(x.completed_at) == d],
                             key=lambda x: x.completed_at,
                         )
                         if len(same_day) >= 10:

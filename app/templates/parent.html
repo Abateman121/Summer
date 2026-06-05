@@ -10,10 +10,43 @@
     <a href="/parent" class="active">Quick actions</a>
     <a href="/parent/kids">Kids</a>
     <a href="/parent/chores">Chores</a>
+    <a href="/parent/categories">Categories</a>
     <a href="/parent/rewards">Rewards</a>
     <a href="/parent/history">History</a>
   </nav>
 </header>
+
+{% if pending_completions %}
+<section class="card">
+  <h2 class="section-title">⏳ Pending approvals ({{ pending_completions|length }})</h2>
+  <p class="muted small">Kids requested these. Approve to award points, or deny with a reason.</p>
+  <ul class="manage-list">
+    {% for c in pending_completions %}
+      <li class="manage-row">
+        <div class="pending-row">
+          <div class="pending-info">
+            <span class="pending-avatar">{{ c.kid.avatar_emoji }}</span>
+            <span class="pending-name">{{ c.kid.name }}</span>
+            <span class="pending-chore">{{ c.chore.name }} <span class="muted">({{ c.chore.points }} pts)</span></span>
+            <span class="pending-when">{{ c.completed_at | humantime }}</span>
+            {% if c.note %}<span class="pending-note">"{{ c.note }}"</span>{% endif %}
+          </div>
+          <div class="pending-actions">
+            <form method="post" action="/parent/approve-completion/{{ c.id }}" class="inline-form inline-action">
+              <button type="submit" class="btn btn-primary">✅ Approve</button>
+            </form>
+            <form method="post" action="/parent/deny-completion/{{ c.id }}" class="inline-form inline-action">
+              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
+              <button type="submit" class="btn btn-danger"
+                      onclick="return confirm('Deny {{ c.kid.name }}'s request for {{ c.chore.name }}?')">✗ Deny</button>
+            </form>
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <section class="card">
   <h2 class="section-title">✨ Mark a chore complete</h2>

@@ -39,16 +39,57 @@
 </section>
 
 <section class="card">
+  <h2 class="section-title">📋 Pick a chore to do</h2>
+  {% if active_chores %}
+    <form method="post" action="/kid/{{ kid.id }}/request-chore" class="quick-form">
+      <div class="form-row">
+        <label for="rq-chore">Chore</label>
+        <select name="chore_id" id="rq-chore" required>
+          {% for c in active_chores %}
+            <option value="{{ c.id }}">{{ c.category.emoji if c.category else '⭐' }} {{ c.name }} — {{ c.points }} pts</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="rq-note">Note (optional)</label>
+        <input type="text" name="note" id="rq-note" maxlength="256" placeholder="Did an extra-good job">
+      </div>
+      <button type="submit" class="btn btn-primary">Send to parent for approval</button>
+    </form>
+    <p class="muted small">A parent will review and award the points.</p>
+  {% else %}
+    <p class="muted">No active chores. Ask a parent to add some.</p>
+  {% endif %}
+</section>
+
+<section class="card">
   <h2 class="section-title">✅ Recent Chores</h2>
   {% if completions %}
     <ul class="timeline">
       {% for c in completions %}
-        <li class="timeline-item timeline-earn">
-          <span class="timeline-emoji">✨</span>
+        <li class="timeline-item
+                   {%- if c.status == 'pending' %} timeline-pending
+                   {%- elif c.status == 'denied' %} timeline-denied
+                   {%- else %} timeline-earn{% endif %}">
+          <span class="timeline-emoji">
+            {%- if c.status == 'pending' %}⏳
+            {%- elif c.status == 'denied' %}✗
+            {%- else %}✨{% endif %}
+          </span>
           <div class="timeline-body">
             <div class="timeline-title">
-              {{ c.chore.name }} <span class="timeline-pts">+{{ c.points_earned }} pts</span>
+              {{ c.chore.name }}
+              {% if c.status == 'approved' %}
+                <span class="timeline-pts">+{{ c.points_earned }} pts</span>
+              {% elif c.status == 'pending' %}
+                <span class="timeline-pts timeline-pts-pending">waiting for parent</span>
+              {% else %}
+                <span class="timeline-pts timeline-pts-denied">not approved</span>
+              {% endif %}
             </div>
+            {% if c.status == 'denied' and c.denial_reason %}
+              <div class="timeline-meta timeline-denial">"{{ c.denial_reason }}"</div>
+            {% endif %}
             <div class="timeline-meta">{{ c.completed_at | humantime }}{% if c.note %} — {{ c.note }}{% endif %}</div>
           </div>
         </li>

@@ -457,6 +457,83 @@ code {
 .timeline-pts-spend { color: var(--reward-dark); }
 .timeline-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
 
+/* Status-aware timeline variants for the kid chore-request workflow. */
+.timeline-pending { opacity: 0.65; }
+.timeline-pending .timeline-emoji { filter: grayscale(40%); }
+.timeline-pts-pending { color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
+.timeline-denied { opacity: 0.85; }
+.timeline-pts-denied { color: var(--danger-dark); font-weight: 700; font-size: 0.85rem; }
+.timeline-denial {
+  font-style: italic;
+  color: var(--danger-dark);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+}
+
+/* Pending approvals section on the parent dashboard. */
+.pending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  flex-wrap: wrap;
+}
+.pending-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.pending-avatar { font-size: 1.5rem; }
+.pending-name { font-weight: 700; }
+.pending-chore { font-weight: 600; }
+.pending-when { color: var(--text-muted); font-size: 0.85rem; }
+.pending-note {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+  width: 100%;
+  margin-top: 4px;
+}
+.pending-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.inline-action {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.inline-action .btn {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.pending-reason {
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: white;
+  font-family: inherit;
+  min-width: 140px;
+}
+:root[data-theme="dark"] .pending-reason {
+  background: #1f1f1f;
+  color: var(--text);
+  border-color: var(--border);
+}
+
 /* --------------------------------------------------------------------------
    Chore catalog (public)
    -------------------------------------------------------------------------- */

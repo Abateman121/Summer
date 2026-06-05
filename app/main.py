@@ -28,6 +28,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -78,6 +79,11 @@ def _fmt_time(dt: datetime) -> str:
     """
     raw = dt.strftime("%I:%M %p").lstrip("0")
     return raw or "12:00 AM"
+
+
+def _utcnow() -> datetime:
+    """Return the current UTC time. Used for stamping approval timestamps."""
+    return datetime.now(timezone.utc)
 
 
 def _fmt_day(d) -> str:  # noqa: ANN001 - accepts date or datetime
@@ -153,9 +159,14 @@ def healthz() -> str:
 
 
 def _kid_balances(db: Session) -> dict[int, int]:
-    """Return {kid_id: current_balance} for every kid."""
+    """Return {kid_id: current_balance} for every kid.
+
+    Only approved completions count toward the balance — pending requests
+    haven't been awarded yet, and denied rows shouldn't subtract.
+    """
     earned_rows = db.execute(
         select(models.ChoreCompletion.kid_id, func.coalesce(func.sum(models.ChoreCompletion.points_earned), 0))
+        .where(models.ChoreCompletion.status == models.STATUS_APPROVED)
         .group_by(models.ChoreCompletion.kid_id)
     ).all()
     spent_rows = db.execute(
@@ -173,12 +184,13 @@ def _kid_balances(db: Session) -> dict[int, int]:
 
 
 def _kid_weekly_earned(db: Session) -> dict[int, int]:
-    """Sum of points earned per kid in the current (Mon-Sun) week."""
+    """Sum of approved points earned per kid in the current (Mon-Sun) week."""
     week_start_utc, week_end_utc = achievements.week_bounds()
     rows = db.execute(
         select(models.ChoreCompletion.kid_id, func.coalesce(func.sum(models.ChoreCompletion.points_earned), 0))
         .where(models.ChoreCompletion.completed_at >= week_start_utc)
         .where(models.ChoreCompletion.completed_at < week_end_utc)
+        .where(models.ChoreCompletion.status == models.STATUS_APPROVED)
         .group_by(models.ChoreCompletion.kid_id)
     ).all()
     return {kid_id: total for kid_id, total in rows}
@@ -306,6 +318,15 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
     balance = achievements.compute_balance(all_completions, all_redemptions)
     streak = achievements.compute_streak(all_completions)
     badges = achievements.compute_badges(all_completions, all_redemptions)
+    active_chores = (
+        db.execute(
+            select(models.Chore)
+            .where(models.Chore.is_active.is_(True))
+            .order_by(models.Chore.name)
+        )
+        .scalars()
+        .all()
+    )
     return _render(
         request,
         "kid.html",
@@ -317,6 +338,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         streak=streak,
         badges=badges,
         lifetime_earned=achievements.compute_lifetime_earned(all_completions),
+        active_chores=active_chores,
     )
 
 
@@ -465,6 +487,15 @@ def parent_dashboard(request: Request, db: Session = Depends(get_db)) -> HTMLRes
         .all()
     )
     balances = _kid_balances(db)
+    pending_completions = (
+        db.execute(
+            select(models.ChoreCompletion)
+            .where(models.ChoreCompletion.status == models.STATUS_PENDING)
+            .order_by(models.ChoreCompletion.completed_at.asc())
+        )
+        .scalars()
+        .all()
+    )
     return _render(
         request,
         "parent.html",
@@ -473,6 +504,7 @@ def parent_dashboard(request: Request, db: Session = Depends(get_db)) -> HTMLRes
         active_chores=active_chores,
         active_rewards=active_rewards,
         balances=balances,
+        pending_completions=pending_completions,
     )
 
 
@@ -497,6 +529,7 @@ def parent_complete_chore(
                 chore_id=chore.id,
                 points_earned=chore.points,
                 note=note.strip(),
+                status=models.STATUS_APPROVED,
             )
         )
         db.commit()
@@ -557,6 +590,111 @@ def parent_redeem(
         return _redirect(
             "/parent",
             msg=f"🎁 {kid.name} redeemed '{reward.name}' for {reward.cost} points!",
+        )
+    finally:
+        db.close()
+
+
+# ----- Chore approval workflow -----
+
+
+@app.post("/kid/{kid_id}/request-chore")
+def kid_request_chore(
+    kid_id: int,
+    chore_id: Annotated[int, Form()],
+    note: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Kid-facing: log a pending chore completion for a parent to approve.
+
+    No PIN required — kids are the intended users. The completion lands
+    with `status='pending'` and `points_earned=NULL`; a parent approves or
+    denies it from `/parent`.
+    """
+    db = SessionLocal()
+    try:
+        kid = db.get(models.Kid, kid_id)
+        if not kid:
+            return _redirect("/", error="Unknown kid.")
+        chore = db.get(models.Chore, chore_id)
+        if not chore or not chore.is_active:
+            return _redirect(
+                f"/kid/{kid_id}", error="That chore isn't available right now."
+            )
+        db.add(
+            models.ChoreCompletion(
+                kid_id=kid.id,
+                chore_id=chore.id,
+                points_earned=None,  # captured on approval
+                note=note.strip(),
+                status=models.STATUS_PENDING,
+            )
+        )
+        db.commit()
+        return _redirect(
+            f"/kid/{kid_id}",
+            msg=f"⏳ '{chore.name}' sent to a parent for approval!",
+        )
+    finally:
+        db.close()
+
+
+@app.post(
+    "/parent/approve-completion/{completion_id}",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_approve_completion(completion_id: int) -> RedirectResponse:
+    """Approve a pending chore request. Captures the chore's current point
+    value into the completion row (so future chore edits don't rewrite
+    history) and stamps the approval as the completion time.
+    """
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChoreCompletion, completion_id)
+        if not c:
+            return _redirect("/parent", error="That request is gone.")
+        if c.status != models.STATUS_PENDING:
+            return _redirect("/parent", error="Already handled.")
+        chore = db.get(models.Chore, c.chore_id)
+        if not chore:
+            return _redirect("/parent", error="That chore is gone.")
+        c.status = models.STATUS_APPROVED
+        c.points_earned = chore.points
+        c.completed_at = _utcnow()
+        c.denial_reason = ""
+        db.commit()
+        return _redirect(
+            "/parent",
+            msg=f"🎉 {c.kid.name} earned {chore.points} points for '{chore.name}'!",
+        )
+    finally:
+        db.close()
+
+
+@app.post(
+    "/parent/deny-completion/{completion_id}",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_deny_completion(
+    completion_id: int,
+    reason: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Deny a pending chore request. Stores the reason so the kid sees
+    feedback on their timeline.
+    """
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChoreCompletion, completion_id)
+        if not c:
+            return _redirect("/parent", error="That request is gone.")
+        if c.status != models.STATUS_PENDING:
+            return _redirect("/parent", error="Already handled.")
+        c.status = models.STATUS_DENIED
+        c.denial_reason = reason.strip()
+        c.points_earned = 0
+        db.commit()
+        return _redirect(
+            "/parent",
+            msg=f"Marked '{c.chore.name}' as not done.",
         )
     finally:
         db.close()
@@ -821,6 +959,107 @@ def parent_rewards_delete(reward_id: int) -> RedirectResponse:
         db.delete(reward)
         db.commit()
         return _redirect("/parent/rewards", msg=f"Removed reward '{name}'.")
+    finally:
+        db.close()
+
+
+# ----- Categories CRUD -----
+
+
+@app.get("/parent/categories", response_class=HTMLResponse, dependencies=[Depends(_require_parent_or_redirect)])
+def parent_categories(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    categories = db.execute(
+        select(models.Category).order_by(models.Category.name)
+    ).scalars().all()
+    # Count chores per category so the admin can see which are in use
+    chore_counts = dict(
+        db.execute(
+            select(models.Chore.category_id, func.count(models.Chore.id))
+            .group_by(models.Chore.category_id)
+        ).all()
+    )
+    return _render(
+        request,
+        "categories.html",
+        db,
+        categories=categories,
+        chore_counts=chore_counts,
+    )
+
+
+@app.post("/parent/categories/add", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_categories_add(
+    name: Annotated[str, Form()],
+    emoji: Annotated[str, Form()] = "⭐",
+) -> RedirectResponse:
+    name = name.strip()
+    if not name:
+        return _redirect("/parent/categories", error="Category name is required.")
+    db = SessionLocal()
+    try:
+        db.add(models.Category(name=name, emoji=emoji or "⭐"))
+        db.commit()
+        return _redirect("/parent/categories", msg=f"Added category '{name}'.")
+    except IntegrityError:
+        db.rollback()
+        return _redirect(
+            "/parent/categories",
+            error=f"A category named '{name}' already exists.",
+        )
+    finally:
+        db.close()
+
+
+@app.post("/parent/categories/{category_id}/edit", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_categories_edit(
+    category_id: int,
+    name: Annotated[str, Form()],
+    emoji: Annotated[str, Form()],
+) -> RedirectResponse:
+    db = SessionLocal()
+    try:
+        cat = db.get(models.Category, category_id)
+        if not cat:
+            return _redirect("/parent/categories", error="Category not found.")
+        cat.name = name.strip() or cat.name
+        cat.emoji = emoji or cat.emoji
+        db.commit()
+        return _redirect("/parent/categories", msg=f"Updated '{cat.name}'.")
+    except IntegrityError:
+        db.rollback()
+        return _redirect(
+            "/parent/categories",
+            error=f"A category named '{name}' already exists.",
+        )
+    finally:
+        db.close()
+
+
+@app.post("/parent/categories/{category_id}/delete", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_categories_delete(category_id: int) -> RedirectResponse:
+    db = SessionLocal()
+    try:
+        cat = db.get(models.Category, category_id)
+        if not cat:
+            return _redirect("/parent/categories", error="Category not found.")
+        in_use = (
+            db.execute(
+                select(func.count(models.Chore.id))
+                .where(models.Chore.category_id == category_id)
+            ).scalar_one()
+        )
+        if in_use > 0:
+            return _redirect(
+                "/parent/categories",
+                error=(
+                    f"'{cat.name}' is used by {in_use} chore(s) — "
+                    "reassign or delete those first."
+                ),
+            )
+        name = cat.name
+        db.delete(cat)
+        db.commit()
+        return _redirect("/parent/categories", msg=f"Removed '{name}'.")
     finally:
         db.close()
 

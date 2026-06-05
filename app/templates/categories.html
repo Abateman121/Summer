@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Manage Categories — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>🗂️ Categories</h1>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/categories" class="active">Categories</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history">History</a>
+  </nav>
+</header>
+
+<section class="card">
+  <h2 class="section-title">➕ Add a category</h2>
+  <form method="post" action="/parent/categories/add" class="inline-form">
+    <div class="form-row">
+      <label for="cat-name">Name</label>
+      <input type="text" name="name" id="cat-name" required maxlength="64" placeholder="e.g. Schoolwork">
+    </div>
+    <div class="form-row">
+      <label for="cat-emoji">Emoji</label>
+      <input type="text" name="emoji" id="cat-emoji" maxlength="8" value="⭐">
+    </div>
+    <button type="submit" class="btn btn-primary">Add category</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title">Current categories</h2>
+  {% if categories %}
+    <ul class="manage-list">
+      {% for c in categories %}
+        <li class="manage-row">
+          <details class="manage-edit">
+            <summary class="manage-summary">
+              <span class="manage-avatar">{{ c.emoji }}</span>
+              <span class="manage-name">{{ c.name }}</span>
+              <span class="manage-balance">{{ chore_counts.get(c.id, 0) }} chore{{ '' if chore_counts.get(c.id, 0) == 1 else 's' }}</span>
+              <span class="manage-chevron">✏️</span>
+            </summary>
+            <form method="post" action="/parent/categories/{{ c.id }}/edit" class="inline-form">
+              <div class="form-row">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ c.name }}" required maxlength="64">
+              </div>
+              <div class="form-row">
+                <label>Emoji</label>
+                <input type="text" name="emoji" value="{{ c.emoji }}" maxlength="8">
+              </div>
+              <div class="row-actions">
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+            <form method="post" action="/parent/categories/{{ c.id }}/delete"
+                  class="delete-form"
+                  data-confirm="Delete category '{{ c.name }}'? This can't be undone.">
+              <button type="submit" class="btn btn-danger">🗑️ Delete category</button>
+            </form>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No categories yet — add your first one above.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

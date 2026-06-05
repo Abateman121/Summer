@@ -81,6 +81,16 @@ class Reward(Base):
     )
 
 
+# ChoreCompletion lifecycle. A kid-driven request lands in PENDING and
+# doesn't count toward balance/streak until a parent approves it. The
+# default is APPROVED so legacy rows (and parent-awarded points) don't
+# need a separate state.
+STATUS_PENDING = "pending"
+STATUS_APPROVED = "approved"
+STATUS_DENIED = "denied"
+COMPLETION_STATUSES = (STATUS_PENDING, STATUS_APPROVED, STATUS_DENIED)
+
+
 class ChoreCompletion(Base):
     __tablename__ = "chore_completions"
 
@@ -91,12 +101,18 @@ class ChoreCompletion(Base):
     chore_id: Mapped[int] = mapped_column(
         ForeignKey("chores.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Captured at completion time so future chore edits don't rewrite history
-    points_earned: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Captured at approval time (not request time) so a chore edit between
+    # request and approval doesn't shift the value the kid sees. Nullable
+    # so a pending request can be stored before the value is known.
+    points_earned: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completed_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, nullable=False, index=True
     )
     note: Mapped[str] = mapped_column(String(256), default="")
+    status: Mapped[str] = mapped_column(
+        String(16), default=STATUS_APPROVED, nullable=False, index=True
+    )
+    denial_reason: Mapped[str] = mapped_column(String(256), default="")
 
     kid: Mapped[Kid] = relationship(back_populates="completions")
     chore: Mapped[Chore] = relationship(back_populates="completions")
