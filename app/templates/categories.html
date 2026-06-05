@@ -16,14 +16,22 @@
 
 <section class="card">
   <h2 class="section-title">➕ Add a category</h2>
-  <form method="post" action="/parent/categories/add" class="inline-form">
+  <form method="post" action="/parent/categories/add" class="inline-form" data-emoji-form data-emoji-target="emoji">
     <div class="form-row">
       <label for="cat-name">Name</label>
       <input type="text" name="name" id="cat-name" required maxlength="64" placeholder="e.g. Schoolwork">
     </div>
     <div class="form-row">
-      <label for="cat-emoji">Emoji</label>
-      <input type="text" name="emoji" id="cat-emoji" maxlength="8" value="⭐">
+      <label>Icon</label>
+      <input type="hidden" name="emoji" value="{{ category_emojis[0] }}">
+      <div class="emoji-picker" role="radiogroup" aria-label="Choose category icon">
+        {% for emoji in category_emojis %}
+          <button type="button" class="emoji-option {% if loop.first %}selected{% endif %}"
+                  data-emoji="{{ emoji }}" role="radio"
+                  aria-checked="{{ 'true' if loop.first else 'false' }}"
+                  aria-label="Icon {{ emoji }}">{{ emoji }}</button>
+        {% endfor %}
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Add category</button>
   </form>
@@ -42,14 +50,22 @@
               <span class="manage-balance">{{ chore_counts.get(c.id, 0) }} chore{{ '' if chore_counts.get(c.id, 0) == 1 else 's' }}</span>
               <span class="manage-chevron">✏️</span>
             </summary>
-            <form method="post" action="/parent/categories/{{ c.id }}/edit" class="inline-form">
+            <form method="post" action="/parent/categories/{{ c.id }}/edit" class="inline-form" data-emoji-form data-emoji-target="emoji">
               <div class="form-row">
                 <label>Name</label>
                 <input type="text" name="name" value="{{ c.name }}" required maxlength="64">
               </div>
               <div class="form-row">
-                <label>Emoji</label>
-                <input type="text" name="emoji" value="{{ c.emoji }}" maxlength="8">
+                <label>Icon</label>
+                <input type="hidden" name="emoji" value="{{ c.emoji }}">
+                <div class="emoji-picker" role="radiogroup" aria-label="Choose category icon">
+                  {% for emoji in category_emojis %}
+                    <button type="button" class="emoji-option {% if emoji == c.emoji %}selected{% endif %}"
+                            data-emoji="{{ emoji }}" role="radio"
+                            aria-checked="{{ 'true' if emoji == c.emoji else 'false' }}"
+                            aria-label="Icon {{ emoji }}">{{ emoji }}</button>
+                  {% endfor %}
+                </div>
               </div>
               <div class="row-actions">
                 <button type="submit" class="btn btn-primary">Save</button>

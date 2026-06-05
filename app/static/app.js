@@ -46,11 +46,13 @@
     });
   }
 
-  // Emoji picker for the /parent/kids forms. Each form with [data-emoji-form]
-  // contains a hidden <input name="avatar_emoji"> and a grid of buttons;
+  // Emoji picker for forms that declare [data-emoji-form]. Each form has a
+  // hidden input (the form declares which via [data-emoji-target="<name>"],
+  // defaulting to "avatar_emoji" for the kid form) and a grid of buttons;
   // clicking a button sets the hidden input and marks the button selected.
   document.querySelectorAll("[data-emoji-form]").forEach(function (form) {
-    var hidden = form.querySelector('input[name="avatar_emoji"]');
+    var targetName = form.getAttribute("data-emoji-target") || "avatar_emoji";
+    var hidden = form.querySelector('input[name="' + targetName + '"]');
     if (!hidden) return;
     var buttons = form.querySelectorAll(".emoji-option");
 
@@ -61,6 +63,11 @@
         btn.setAttribute("aria-checked", match ? "true" : "false");
       });
     }
+
+    // If the hidden input already has a value (e.g. editing an existing
+    // record), highlight the matching button so the picker shows the
+    // current selection.
+    if (hidden.value) setSelected(hidden.value);
 
     buttons.forEach(function (btn) {
       btn.addEventListener("click", function () {

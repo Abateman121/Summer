@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.0.7")
+app = FastAPI(title="Summer", version="0.0.8")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -131,6 +131,30 @@ KID_AVATAR_CHOICES: list[str] = [
     "⚡", "🌈", "🚀", "🤖",
 ]
 templates.env.globals["kid_avatars"] = KID_AVATAR_CHOICES
+
+# Curated emoji set for chore category icons. Roughly grouped by area so the
+# picker feels organized: misc / default, rooms, food/kitchen, cleaning,
+# outdoors, animals, school, sports, more misc. The first entry ("⭐") is
+# the default for new categories and matches the existing seed.
+CATEGORY_EMOJI_CHOICES: list[str] = [
+    # Default / misc
+    "⭐", "🌟", "✨", "💫", "❤️", "🔔", "🎁", "🏆",
+    # Rooms
+    "🛏️", "🛋️", "🚪", "🪟", "🪑", "🚽", "🛁", "🚿",
+    # Kitchen / food
+    "🍳", "🥣", "🍽️", "🥄", "🍴", "🧽", "🧊",
+    # Cleaning / laundry
+    "🧹", "🧼", "🧴", "🧺", "🗑️",
+    # Outdoors / garden
+    "🌳", "🌲", "🌱", "🌻", "🌷", "🌿", "🍂", "⛲",
+    # Animals / pets
+    "🐶", "🐱", "🐰", "🐹", "🐠", "🐦", "🐢", "🐾",
+    # School / learning
+    "📚", "✏️", "📝", "🎒", "📖", "🎨", "🎵", "🧮",
+    # Sports / active
+    "⚽", "🏀", "🚴", "🏊", "🎮", "🎲", "🪀", "🛹",
+]
+templates.env.globals["category_emojis"] = CATEGORY_EMOJI_CHOICES
 
 
 # ---------------------------------------------------------------------------
