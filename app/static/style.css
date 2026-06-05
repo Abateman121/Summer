@@ -679,7 +679,42 @@ code {
 .btn-reward:hover { background: var(--reward-dark); }
 .btn-danger { background: var(--danger); color: white; font-size: 0.9rem; padding: 8px 12px; min-height: 36px; }
 .btn-danger:hover { background: var(--danger-dark); }
+.btn-undo { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 0.8rem; padding: 4px 8px; min-height: 32px; }
+.btn-undo:hover { background: #fef3c7; color: var(--text); }
 .btn-large { font-size: 1.15rem; padding: 14px 20px; }
+
+/* Version chip in topbar */
+.app-version {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="dark"] .app-version { background: rgba(255,255,255,0.08); }
+
+/* History table extras */
+.history-table td { vertical-align: middle; }
+.history-undo { margin: 0; display: inline-block; }
+.status-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.status-approved { background: #d1fae5; color: #065f46; }
+.status-pending  { background: #fef3c7; color: #92400e; }
+.status-denied   { background: #fee2e2; color: #991b1b; }
+:root[data-theme="dark"] .status-approved { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+:root[data-theme="dark"] .status-pending  { background: rgba(245,158,11,0.18); color: #fcd34d; }
+:root[data-theme="dark"] .status-denied   { background: rgba(239,68,68,0.18); color: #fca5a5; }
+.history-row-pending td { opacity: 0.7; }
+.history-row-denied td  { opacity: 0.6; text-decoration: line-through; }
 
 /* --------------------------------------------------------------------------
    Manage lists (admin CRUD)

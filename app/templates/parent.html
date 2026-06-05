@@ -35,10 +35,11 @@
             <form method="post" action="/parent/approve-completion/{{ c.id }}" class="inline-form inline-action">
               <button type="submit" class="btn btn-primary">✅ Approve</button>
             </form>
-            <form method="post" action="/parent/deny-completion/{{ c.id }}" class="inline-form inline-action">
+            <form method="post" action="/parent/deny-completion/{{ c.id }}"
+                  class="inline-form inline-action"
+                  data-confirm="Deny {{ c.kid.name }}'s request for {{ c.chore.name }}?">
               <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
-              <button type="submit" class="btn btn-danger"
-                      onclick="return confirm('Deny {{ c.kid.name }}'s request for {{ c.chore.name }}?')">✗ Deny</button>
+              <button type="submit" class="btn btn-danger">✗ Deny</button>
             </form>
           </div>
         </div>
@@ -104,6 +105,10 @@
             <option value="{{ r.id }}">{{ r.emoji }} {{ r.name }} — {{ r.cost }} pts</option>
           {% endfor %}
         </select>
+      </div>
+      <div class="form-row">
+        <label for="rd-cost">Cost override (optional)</label>
+        <input type="number" name="cost_override" id="rd-cost" min="1" step="1" placeholder="Leave blank to use reward's default cost">
       </div>
       <div class="form-row">
         <label for="rd-note">Note (optional)</label>

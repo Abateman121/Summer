@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.0")
+app = FastAPI(title="Summer", version="0.0.7")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -117,6 +117,7 @@ def _week_label(now: datetime | None = None) -> str:
 # Make helpers available in all templates
 templates.env.filters["humantime"] = _humanize_timedelta
 templates.env.globals["week_label"] = _week_label
+templates.env.globals["app_version"] = app.version
 
 # Curated emoji set the parent can pick from for a kid's avatar. Roughly
 # grouped: mammals, bears, misc animals, mythical / dinos, sea / bugs, fun.
@@ -541,13 +542,81 @@ def parent_complete_chore(
         db.close()
 
 
+@app.post("/parent/undo-completion/{completion_id}", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_undo_completion(completion_id: int) -> RedirectResponse:
+    """Undo a chore completion that was already approved (or awarded directly
+    by the parent). Marks the row as `denied` with a reason so the audit
+    trail is preserved — we don't delete the row, the kid's history stays
+    intact and the balance/lifetime recompute correctly without it.
+
+    Only approved completions can be undone. Pending requests should be
+    denied (which keeps the same row) rather than undone, and denied
+    rows have nothing to undo.
+    """
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChoreCompletion, completion_id)
+        if not c:
+            return _redirect("/parent/history", error="That entry is gone.")
+        if c.status != models.STATUS_APPROVED:
+            return _redirect(
+                "/parent/history",
+                error="Only approved completions can be undone.",
+            )
+        chore = db.get(models.Chore, c.chore_id)
+        chore_name = chore.name if chore else "(deleted chore)"
+        c.status = models.STATUS_DENIED
+        c.denial_reason = "Undone by parent"
+        c.points_earned = 0
+        db.commit()
+        return _redirect(
+            "/parent/history",
+            msg=f"↩️ Undid '{chore_name}' — points removed from {c.kid.name}.",
+        )
+    finally:
+        db.close()
+
+
+@app.post("/parent/undo-redemption/{redemption_id}", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_undo_redemption(redemption_id: int) -> RedirectResponse:
+    """Undo a reward redemption. Deletes the row so the kid's balance
+    is restored. (For chore completions we keep the row as 'denied'
+    to preserve audit trail; redemptions don't have an approval step
+    so deletion is the simpler equivalent.)
+    """
+    db = SessionLocal()
+    try:
+        r = db.get(models.RewardRedemption, redemption_id)
+        if not r:
+            return _redirect("/parent/history", error="That entry is gone.")
+        reward = db.get(models.Reward, r.reward_id)
+        reward_name = reward.name if reward else "(deleted reward)"
+        db.delete(r)
+        db.commit()
+        return _redirect(
+            "/parent/history",
+            msg=f"↩️ Undid redemption of '{reward_name}' — {r.points_spent} points restored to {r.kid.name}.",
+        )
+    finally:
+        db.close()
+
+
 @app.post("/parent/redeem", dependencies=[Depends(_require_parent_or_redirect)])
 def parent_redeem(
     request: Request,
     kid_id: Annotated[int, Form()],
     reward_id: Annotated[int, Form()],
     note: Annotated[str, Form()] = "",
+    cost_override: Annotated[Optional[int], Form()] = None,
 ) -> RedirectResponse:
+    """Redeem a reward for a kid.
+
+    `cost_override` lets a parent discount or adjust the redemption cost
+    at the moment of redemption (e.g. "this ice cream is on sale, charge
+    20 instead of 30"). The actual amount charged is recorded on the
+    redemption row so future reward-cost edits don't rewrite history.
+    Falls back to `reward.cost` when not provided.
+    """
     db = SessionLocal()
     try:
         reward = db.get(models.Reward, reward_id)
@@ -556,6 +625,12 @@ def parent_redeem(
             return _redirect("/parent", error="That reward isn't available right now.")
         if not kid:
             return _redirect("/parent", error="Unknown kid.")
+
+        # Use the override if provided, otherwise the reward's default cost.
+        # The override is clamped to at least 1 (no negative or zero redemptions)
+        # and at most the kid's current balance (can't spend more than they have).
+        effective_cost = cost_override if cost_override is not None else reward.cost
+        effective_cost = max(1, effective_cost)
 
         # Check balance first
         completions = (
@@ -573,24 +648,31 @@ def parent_redeem(
             .all()
         )
         balance = achievements.compute_balance(completions, redemptions)
-        if balance < reward.cost:
+        if balance < effective_cost:
             return _redirect(
                 "/parent",
-                error=f"❌ {kid.name} only has {balance} points — needs {reward.cost} for '{reward.name}'.",
+                error=(
+                    f"❌ {kid.name} only has {balance} points — "
+                    f"needs {effective_cost} for '{reward.name}'."
+                ),
             )
         db.add(
             models.RewardRedemption(
                 kid_id=kid.id,
                 reward_id=reward.id,
-                points_spent=reward.cost,
+                points_spent=effective_cost,
                 note=note.strip(),
             )
         )
         db.commit()
-        return _redirect(
-            "/parent",
-            msg=f"🎁 {kid.name} redeemed '{reward.name}' for {reward.cost} points!",
-        )
+        if cost_override is not None and cost_override != reward.cost:
+            msg = (
+                f"🎁 {kid.name} redeemed '{reward.name}' for {effective_cost} points "
+                f"(override; default was {reward.cost})!"
+            )
+        else:
+            msg = f"🎁 {kid.name} redeemed '{reward.name}' for {effective_cost} points!"
+        return _redirect("/parent", msg=msg)
     finally:
         db.close()
 

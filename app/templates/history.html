@@ -20,16 +20,31 @@
   {% if completions %}
     <table class="history-table">
       <thead>
-        <tr><th>When</th><th>Kid</th><th>Chore</th><th>Points</th><th>Note</th></tr>
+        <tr><th>When</th><th>Kid</th><th>Chore</th><th>Status</th><th>Points</th><th>Note</th><th></th></tr>
       </thead>
       <tbody>
         {% for c in completions %}
-          <tr>
+          <tr class="{% if c.status == 'denied' %}history-row-denied{% elif c.status == 'pending' %}history-row-pending{% endif %}">
             <td class="when">{{ c.completed_at | humantime }}</td>
             <td>{{ kids[c.kid_id].avatar_emoji }} {{ kids[c.kid_id].name }}</td>
             <td>{{ c.chore.name }}</td>
-            <td class="pts-earn">+{{ c.points_earned }}</td>
+            <td>
+              {% if c.status == 'approved' %}<span class="status-tag status-approved">approved</span>
+              {% elif c.status == 'pending' %}<span class="status-tag status-pending">pending</span>
+              {% else %}<span class="status-tag status-denied">denied</span>{% endif %}
+              {% if c.denial_reason %}<div class="muted small">{{ c.denial_reason }}</div>{% endif %}
+            </td>
+            <td class="pts-earn">{{ '%+d' % (c.points_earned or 0) }}</td>
             <td class="note">{{ c.note or '' }}</td>
+            <td>
+              {% if c.status == 'approved' %}
+                <form method="post" action="/parent/undo-completion/{{ c.id }}"
+                      data-confirm="Undo {{ kids[c.kid_id].name }}'s '{{ c.chore.name }}' completion? The points will be removed from their balance."
+                      class="history-undo">
+                  <button type="submit" class="btn btn-undo">↩️ Undo</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
       </tbody>
@@ -44,7 +59,7 @@
   {% if redemptions %}
     <table class="history-table">
       <thead>
-        <tr><th>When</th><th>Kid</th><th>Reward</th><th>Cost</th><th>Note</th></tr>
+        <tr><th>When</th><th>Kid</th><th>Reward</th><th>Cost</th><th>Note</th><th></th></tr>
       </thead>
       <tbody>
         {% for r in redemptions %}
@@ -54,6 +69,13 @@
             <td>{{ r.reward.emoji }} {{ r.reward.name }}</td>
             <td class="pts-spend">-{{ r.points_spent }}</td>
             <td class="note">{{ r.note or '' }}</td>
+            <td>
+              <form method="post" action="/parent/undo-redemption/{{ r.id }}"
+                    data-confirm="Undo {{ kids[r.kid_id].name }}'s redemption of '{{ r.reward.name }}'? The {{ r.points_spent }} points will be restored."
+                    class="history-undo">
+                <button type="submit" class="btn btn-undo">↩️ Undo</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
