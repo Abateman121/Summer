@@ -2,10 +2,13 @@
 {% block title %}Summer — Home{% endblock %}
 {% block content %}
 
-<section class="hero">
-  <h1 class="hero-title">Summer Points</h1>
-  <p class="hero-sub">{{ week_label() }}</p>
-</section>
+<header class="page-header rewards-header">
+  <div>
+    <h1>🏠 Home</h1>
+    <p class="muted">{{ week_label() }}</p>
+  </div>
+  <button type="button" class="print-button no-print" onclick="window.print()">🖨️ Print</button>
+</header>
 
 {% if leaderboard %}
 <section class="leaderboard">

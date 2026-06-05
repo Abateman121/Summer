@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.0.9")
+app = FastAPI(title="Summer", version="0.0.10")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.

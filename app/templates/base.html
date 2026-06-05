@@ -36,7 +36,6 @@
       </button>
       <a href="/chores">Chores</a>
       <a href="/rewards">Rewards</a>
-      <a href="/print">Print</a>
       {% if is_parent %}
         <a href="/parent" class="nav-admin">Parent</a>
         <a href="/logout" class="nav-logout">Log out</a>
@@ -67,9 +66,6 @@
     </a>
     <a href="/rewards">
       <span class="bb-icon">🎁</span><span>Rewards</span>
-    </a>
-    <a href="/print">
-      <span class="bb-icon">🖨️</span><span>Print</span>
     </a>
     <a href="{% if is_parent %}/parent{% else %}/login{% endif %}">
       <span class="bb-icon">👪</span><span>Parent</span>
