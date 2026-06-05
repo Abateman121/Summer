@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.0.10")
+app = FastAPI(title="Summer", version="0.1.0")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -155,6 +155,26 @@ CATEGORY_EMOJI_CHOICES: list[str] = [
     "⚽", "🏀", "🚴", "🏊", "🎮", "🎲", "🪀", "🛹",
 ]
 templates.env.globals["category_emojis"] = CATEGORY_EMOJI_CHOICES
+
+# Curated emoji set for reward icons. Roughly grouped: food/treats,
+# activities, outings, toys/objects, misc/bonus. The first entry ("🎁")
+# matches the seed's default and is the suggested default for new rewards.
+REWARD_EMOJI_CHOICES: list[str] = [
+    # Food / treats
+    "🎁", "🍦", "🍕", "🍔", "🍫", "🍩", "🍪", "🍿",
+    "🎂", "🍰", "🍭", "🍬", "🧃", "🥤", "🍓", "🌮",
+    # Activities
+    "🎮", "🎲", "🪀", "🎨", "🎵", "🎬", "📺", "🎳",
+    # Outings
+    "🎢", "🎡", "🎠", "🏖️", "⛺", "🎿", "🚴", "🏊",
+    "🏕️", "🌙",  # sleepover / late night
+    # Toys / objects
+    "🧸", "🎈", "🪁", "🏆", "🛹", "📚", "🎟️", "💰",
+    "📱",  # screen time
+    # Misc / bonus
+    "⭐", "🌟", "✨", "💫", "❤️", "🔔", "🎉", "🎊",
+]
+templates.env.globals["reward_emojis"] = REWARD_EMOJI_CHOICES
 
 
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@
 
 <section class="card">
   <h2 class="section-title">➕ Add a reward</h2>
-  <form method="post" action="/parent/rewards/add" class="inline-form">
+  <form method="post" action="/parent/rewards/add" class="inline-form" data-emoji-form data-emoji-target="emoji">
     <div class="form-row">
       <label for="rw-name">Name</label>
       <input type="text" name="name" id="rw-name" required maxlength="128" placeholder="e.g. Ice cream trip">
@@ -26,8 +26,16 @@
       <input type="number" name="cost" id="rw-cost" required min="1" max="9999" value="30">
     </div>
     <div class="form-row">
-      <label for="rw-emoji">Emoji</label>
-      <input type="text" name="emoji" id="rw-emoji" maxlength="8" value="🎁">
+      <label>Icon</label>
+      <input type="hidden" name="emoji" value="{{ reward_emojis[0] }}">
+      <div class="emoji-picker" role="radiogroup" aria-label="Choose reward icon">
+        {% for emoji in reward_emojis %}
+          <button type="button" class="emoji-option {% if loop.first %}selected{% endif %}"
+                  data-emoji="{{ emoji }}" role="radio"
+                  aria-checked="{{ 'true' if loop.first else 'false' }}"
+                  aria-label="Icon {{ emoji }}">{{ emoji }}</button>
+        {% endfor %}
+      </div>
     </div>
     <div class="form-row">
       <label for="rw-desc">Description (optional)</label>
@@ -51,7 +59,7 @@
               {% if not r.is_active %}<span class="badge-tag badge-inactive">paused</span>{% endif %}
               <span class="manage-chevron">✏️</span>
             </summary>
-            <form method="post" action="/parent/rewards/{{ r.id }}/edit" class="inline-form">
+            <form method="post" action="/parent/rewards/{{ r.id }}/edit" class="inline-form" data-emoji-form data-emoji-target="emoji">
               <div class="form-row">
                 <label>Name</label>
                 <input type="text" name="name" value="{{ r.name }}" required maxlength="128">
@@ -61,8 +69,16 @@
                 <input type="number" name="cost" value="{{ r.cost }}" required min="1" max="9999">
               </div>
               <div class="form-row">
-                <label>Emoji</label>
-                <input type="text" name="emoji" value="{{ r.emoji }}" maxlength="8">
+                <label>Icon</label>
+                <input type="hidden" name="emoji" value="{{ r.emoji }}">
+                <div class="emoji-picker" role="radiogroup" aria-label="Choose reward icon">
+                  {% for emoji in reward_emojis %}
+                    <button type="button" class="emoji-option {% if emoji == r.emoji %}selected{% endif %}"
+                            data-emoji="{{ emoji }}" role="radio"
+                            aria-checked="{{ 'true' if emoji == r.emoji else 'false' }}"
+                            aria-label="Icon {{ emoji }}">{{ emoji }}</button>
+                  {% endfor %}
+                </div>
               </div>
               <div class="form-row">
                 <label>Description</label>
