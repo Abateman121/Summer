@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.0.8")
+app = FastAPI(title="Summer", version="0.0.9")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -539,7 +539,19 @@ def parent_complete_chore(
     kid_id: Annotated[int, Form()],
     chore_id: Annotated[int, Form()],
     note: Annotated[str, Form()] = "",
+    points_override: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
+    """Parent marks a chore complete for a kid (no kid request involved).
+
+    `points_override` lets the parent award a different point value at
+    the moment of completion (e.g. "Sam pulled 25 weeds, give them 25
+    instead of 15"). Falls back to the chore's `points` when blank, and
+    is clamped to >= 0. The actual amount is recorded on the completion
+    row so future chore edits don't rewrite history.
+
+    `points_override` is taken as a string so an empty field is treated
+    as "use the chore's default" rather than a FastAPI 422.
+    """
     db = SessionLocal()
     try:
         chore = db.get(models.Chore, chore_id)
@@ -548,20 +560,34 @@ def parent_complete_chore(
             return _redirect("/parent", error="That chore isn't available right now.")
         if not kid:
             return _redirect("/parent", error="Unknown kid.")
+        override_val: Optional[int]
+        if points_override.strip() == "":
+            override_val = None
+        else:
+            try:
+                override_val = int(points_override)
+            except ValueError:
+                return _redirect(
+                    "/parent",
+                    error="Points override must be a whole number, or blank.",
+                )
+        actual_points = (
+            max(0, override_val) if override_val is not None else chore.points
+        )
         db.add(
             models.ChoreCompletion(
                 kid_id=kid.id,
                 chore_id=chore.id,
-                points_earned=chore.points,
+                points_earned=actual_points,
                 note=note.strip(),
                 status=models.STATUS_APPROVED,
             )
         )
         db.commit()
-        return _redirect(
-            "/parent",
-            msg=f"🎉 {kid.name} earned {chore.points} points for '{chore.name}'!",
-        )
+        msg = f"🎉 {kid.name} earned {actual_points} points for '{chore.name}'!"
+        if override_val is not None and override_val != chore.points:
+            msg += f" (override; default was {chore.points})"
+        return _redirect("/parent", msg=msg)
     finally:
         db.close()
 
@@ -713,8 +739,10 @@ def kid_request_chore(
     """Kid-facing: log a pending chore completion for a parent to approve.
 
     No PIN required — kids are the intended users. The completion lands
-    with `status='pending'` and `points_earned=NULL`; a parent approves or
-    denies it from `/parent`.
+    with `status='pending'` and `points_earned=0` (a server-side default
+    would also work, but setting it explicitly is clearer). A parent
+    then approves from `/parent`, where they can also override the
+    chore's default points to reward extra effort.
     """
     db = SessionLocal()
     try:
@@ -730,7 +758,7 @@ def kid_request_chore(
             models.ChoreCompletion(
                 kid_id=kid.id,
                 chore_id=chore.id,
-                points_earned=None,  # captured on approval
+                points_earned=0,  # real value is captured on approval
                 note=note.strip(),
                 status=models.STATUS_PENDING,
             )
@@ -748,10 +776,19 @@ def kid_request_chore(
     "/parent/approve-completion/{completion_id}",
     dependencies=[Depends(_require_parent_or_redirect)],
 )
-def parent_approve_completion(completion_id: int) -> RedirectResponse:
-    """Approve a pending chore request. Captures the chore's current point
-    value into the completion row (so future chore edits don't rewrite
-    history) and stamps the approval as the completion time.
+def parent_approve_completion(
+    completion_id: int,
+    points_override: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Approve a pending chore request. Captures the awarded point value
+    into the completion row (so future chore edits don't rewrite history)
+    and stamps the approval as the completion time.
+
+    `points_override` lets the parent award a different point value at
+    approval time (e.g. "they pulled 25 weeds, give them 25 instead of
+    15"). Falls back to the chore's `points` when blank, and is clamped
+    to >= 0. Taken as a string so an empty field means "use default"
+    rather than a FastAPI 422.
     """
     db = SessionLocal()
     try:
@@ -763,15 +800,29 @@ def parent_approve_completion(completion_id: int) -> RedirectResponse:
         chore = db.get(models.Chore, c.chore_id)
         if not chore:
             return _redirect("/parent", error="That chore is gone.")
+        override_val: Optional[int]
+        if points_override.strip() == "":
+            override_val = None
+        else:
+            try:
+                override_val = int(points_override)
+            except ValueError:
+                return _redirect(
+                    "/parent",
+                    error="Points override must be a whole number, or blank.",
+                )
+        actual_points = (
+            max(0, override_val) if override_val is not None else chore.points
+        )
         c.status = models.STATUS_APPROVED
-        c.points_earned = chore.points
+        c.points_earned = actual_points
         c.completed_at = _utcnow()
         c.denial_reason = ""
         db.commit()
-        return _redirect(
-            "/parent",
-            msg=f"🎉 {c.kid.name} earned {chore.points} points for '{chore.name}'!",
-        )
+        msg = f"🎉 {c.kid.name} earned {actual_points} points for '{chore.name}'!"
+        if override_val is not None and override_val != chore.points:
+            msg += f" (override; default was {chore.points})"
+        return _redirect("/parent", msg=msg)
     finally:
         db.close()
 

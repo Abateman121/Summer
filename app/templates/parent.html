@@ -33,6 +33,11 @@
           </div>
           <div class="pending-actions">
             <form method="post" action="/parent/approve-completion/{{ c.id }}" class="inline-form inline-action">
+              <input type="number" name="points_override" value="{{ c.chore.points }}" min="0" step="1"
+                     class="pending-pts"
+                     title="Points to award (default for this chore: {{ c.chore.points }})"
+                     aria-label="Points to award">
+              <span class="pending-pts-label">pts</span>
               <button type="submit" class="btn btn-primary">✅ Approve</button>
             </form>
             <form method="post" action="/parent/deny-completion/{{ c.id }}"
@@ -72,6 +77,11 @@
             <option value="{{ c.id }}">{{ c.name }} — {{ c.points }} pts</option>
           {% endfor %}
         </select>
+      </div>
+      <div class="form-row">
+        <label for="cc-pts">Points override (optional)</label>
+        <input type="number" name="points_override" id="cc-pts" min="0" step="1"
+               placeholder="Leave blank to use the chore's default points">
       </div>
       <div class="form-row">
         <label for="cc-note">Note (optional)</label>

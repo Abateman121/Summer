@@ -533,6 +533,32 @@ code {
   color: var(--text);
   border-color: var(--border);
 }
+.pending-pts {
+  width: 70px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: right;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--text);
+  font-family: inherit;
+}
+.pending-pts:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.pending-pts-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-left: -2px;
+}
+:root[data-theme="dark"] .pending-pts {
+  background: #1f1f1f;
+  color: var(--text);
+  border-color: var(--border);
+}
 
 /* --------------------------------------------------------------------------
    Chore catalog (public)
