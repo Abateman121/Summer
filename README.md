@@ -4,17 +4,69 @@ A lightweight, self-hosted web app for tracking summer chores and rewarding
 kids with points they can spend on a catalog of rewards. Mobile-friendly and
 designed to be opened on a phone from anywhere on the home Wi-Fi.
 
-- **Track chores** with adjustable point values
-- **Award points** when a chore is marked complete (locked in at the time)
-- **Deduct points** when kids redeem rewards from a configurable catalog
-- **Kid-driven flow** — kids can submit chore completions and reward
-  redemptions for parent approval, no PIN required
-- **Lightweight** — single SQLite file, FastAPI + Jinja2, no JS framework
-- **Fun** — leaderboard, achievement badges, day streaks
-- **Printable** weekly summary for the fridge
-- **PWA** — "Add to Home Screen" on iOS feels like a native app
-- **Parented** — admin actions are PIN-gated; kid submissions are
-  approved (or denied with a reason) from the parent dashboard
+## Features
+
+### Chore & reward tracking
+- **Configurable chore catalog** — name, description, points, category,
+  active/inactive flag.
+- **Configurable reward catalog** — name, description, cost, icon,
+  active/inactive flag.
+- **Categories CRUD** — group chores by room / area / type.
+- **Point value locked at event time** — editing a chore or reward later
+  doesn't rewrite history.
+- **Per-completion points override** — the parent can award a different
+  value at approval time without editing the chore.
+- **Per-redemption cost override** — the parent can discount a reward at
+  approval time.
+
+### Kid-driven flow (parent-approved)
+- **Kid-initiated chore submissions** — kid picks a chore, adds an
+  optional note, sends to the parent for approval.
+- **Kid-initiated reward redemptions** — kid picks a reward from the
+  catalog, adds an optional note, sends to the parent for approval.
+- **Click-to-redeem on `/rewards`** — tapping a reward card takes the kid
+  straight to a redemption form for that reward.
+- **Parent approval queue** on `/parent` with inline Approve / Deny
+  buttons for both chores and redemptions.
+- **Deny with a reason** — the reason shows back to the kid on their
+  timeline.
+- **Insufficient-balance guard** — the parent can't accidentally
+  over-spend a kid's balance when approving a redemption.
+
+### Engagement
+- **Leaderboard** with medals (gold / silver / bronze) on the home page.
+- **7 achievement badges** — First Steps, Half Century, Century Club,
+  Superstar, Week Warrior, Chore Champion, Big Spender. Computed
+  lazily from existing data, no separate table.
+- **Day streak** — consecutive days with at least one chore completed.
+
+### Admin / parent
+- **Parent PIN** gates all admin pages.
+- **Undo for chores and rewards** — works for both pending and approved
+  rows. Pending → marked denied; approved → removed from balance.
+- **Kids, chores, rewards, categories CRUD** under the parent area.
+- **Active / inactive flag** on chores and rewards — hide without
+  deleting, so the kid's history stays intact.
+- **Emoji / icon picker** for kid avatars, category icons, and reward
+  icons.
+- **Version chip** in the header so you can see what's deployed at a
+  glance.
+
+### Print & mobile
+- **Per-page print button** on home, chores, and rewards pages.
+- **Weekly summary** for the fridge (and a printable rewards page).
+- **PWA** — "Add to Home Screen" on iOS feels like a native app.
+- **Mobile-friendly responsive design** — works on a phone from the
+  home Wi-Fi.
+- **Dark mode** with a persisted toggle.
+
+### Technical
+- **Single SQLite file** — no external DB to run.
+- **FastAPI + Jinja2**, server-rendered HTML, no JS framework.
+- **Docker** deployment via `Dockerfile` + `docker-compose.yml`, with a
+  prebuilt image on GitHub Container Registry.
+- **Idempotent schema migrations** — safe to roll forward through
+  versions without losing data.
 
 ---
 
@@ -173,6 +225,34 @@ Summer/
 | `TZ` | `UTC` | IANA timezone for streak/date math (e.g. `America/New_York`) |
 | `DATABASE_URL` | `sqlite:///<project>/data/summer.db` | Override SQLite location |
 | `HOST` / `PORT` | `0.0.0.0` / `8000` | Bind address for uvicorn |
+
+---
+
+## Future
+
+The full design notes for these are in [CLAUDE.md](CLAUDE.md) under
+"Deferred features" — what's below is the at-a-glance summary. None of
+these are built yet; pick one up when the time comes.
+
+- **Feature A — Multi-tenant family switching.** Let friends use the
+  app for their own families, with strict data isolation per family,
+  per-family parent PINs, and a parent-invite flow.
+- **Feature B — OAuth with Authentik.** OIDC / OAuth login against a
+  self-hosted Authentik instance (email or username). Composes with
+  Feature A so each Authentik user maps to a family and a role.
+- **Feature C — SMTP for Gmail.** Transactional email for parent
+  invites, basic-auth password resets, chore-completion alerts to
+  parents, and an admin "test fire" button. Authentik users bypass
+  the password-reset path — Authentik handles that itself.
+- **Feature D — Negative points / point adjustments.** Adjust
+  already-approved chore completions in place, plus a parent-driven
+  deduction flow for negative behaviors (fighting, missed routines,
+  etc.) with a "category" tag the parent fills out.
+- **Feature E — Platform-level admin account.** A new platform-level
+  admin (above the family level) that can reset passwords for any
+  user, fire test emails, see the recent email log, and manage
+  global settings. Includes a `/setup-admin` first-run wizard for
+  new installs and a defined upgrade path for existing installs.
 
 ---
 
