@@ -128,12 +128,21 @@ class RewardRedemption(Base):
     reward_id: Mapped[int] = mapped_column(
         ForeignKey("rewards.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Captured at redemption time
-    points_spent: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Captured at approval time (not request time) so a reward edit between
+    # request and approval doesn't shift the value the kid sees. Nullable
+    # so a pending request can be stored before the value is known.
+    points_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     redeemed_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, nullable=False, index=True
     )
     note: Mapped[str] = mapped_column(String(256), default="")
+    # Mirrors ChoreCompletion: parent-initiated redemptions stay APPROVED
+    # by default; kid-initiated requests land in PENDING until a parent
+    # approves (sets points_spent) or denies.
+    status: Mapped[str] = mapped_column(
+        String(16), default=STATUS_APPROVED, nullable=False, index=True
+    )
+    denial_reason: Mapped[str] = mapped_column(String(256), default="")
 
     kid: Mapped[Kid] = relationship(back_populates="redemptions")
     reward: Mapped[Reward] = relationship(back_populates="redemptions")

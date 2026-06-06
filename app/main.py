@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.0")
+app = FastAPI(title="Summer", version="0.1.1")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -206,8 +206,9 @@ def healthz() -> str:
 def _kid_balances(db: Session) -> dict[int, int]:
     """Return {kid_id: current_balance} for every kid.
 
-    Only approved completions count toward the balance — pending requests
-    haven't been awarded yet, and denied rows shouldn't subtract.
+    Only approved completions and redemptions count toward the balance —
+    pending requests haven't been awarded/spent yet, and denied rows
+    shouldn't affect anything.
     """
     earned_rows = db.execute(
         select(models.ChoreCompletion.kid_id, func.coalesce(func.sum(models.ChoreCompletion.points_earned), 0))
@@ -216,6 +217,7 @@ def _kid_balances(db: Session) -> dict[int, int]:
     ).all()
     spent_rows = db.execute(
         select(models.RewardRedemption.kid_id, func.coalesce(func.sum(models.RewardRedemption.points_spent), 0))
+        .where(models.RewardRedemption.status == models.STATUS_APPROVED)
         .group_by(models.RewardRedemption.kid_id)
     ).all()
     earned = {kid_id: total for kid_id, total in earned_rows}
@@ -242,11 +244,13 @@ def _kid_weekly_earned(db: Session) -> dict[int, int]:
 
 
 def _kid_weekly_spent(db: Session) -> dict[int, int]:
+    """Sum of approved points spent per kid in the current (Mon-Sun) week."""
     week_start_utc, week_end_utc = achievements.week_bounds()
     rows = db.execute(
         select(models.RewardRedemption.kid_id, func.coalesce(func.sum(models.RewardRedemption.points_spent), 0))
         .where(models.RewardRedemption.redeemed_at >= week_start_utc)
         .where(models.RewardRedemption.redeemed_at < week_end_utc)
+        .where(models.RewardRedemption.status == models.STATUS_APPROVED)
         .group_by(models.RewardRedemption.kid_id)
     ).all()
     return {kid_id: total for kid_id, total in rows}
@@ -372,6 +376,15 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         .scalars()
         .all()
     )
+    active_rewards = (
+        db.execute(
+            select(models.Reward)
+            .where(models.Reward.is_active.is_(True))
+            .order_by(models.Reward.cost)
+        )
+        .scalars()
+        .all()
+    )
     return _render(
         request,
         "kid.html",
@@ -384,6 +397,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         badges=badges,
         lifetime_earned=achievements.compute_lifetime_earned(all_completions),
         active_chores=active_chores,
+        active_rewards=active_rewards,
     )
 
 
@@ -451,6 +465,7 @@ def printable_summary(request: Request, db: Session = Depends(get_db)) -> HTMLRe
     rows = db.execute(
         select(models.RewardRedemption)
         .where(models.RewardRedemption.redeemed_at >= week_start_utc)
+        .where(models.RewardRedemption.status == models.STATUS_APPROVED)
         .order_by(models.RewardRedemption.redeemed_at.asc())
     ).scalars().all()
     for r in rows:
@@ -541,6 +556,15 @@ def parent_dashboard(request: Request, db: Session = Depends(get_db)) -> HTMLRes
         .scalars()
         .all()
     )
+    pending_redemptions = (
+        db.execute(
+            select(models.RewardRedemption)
+            .where(models.RewardRedemption.status == models.STATUS_PENDING)
+            .order_by(models.RewardRedemption.redeemed_at.asc())
+        )
+        .scalars()
+        .all()
+    )
     return _render(
         request,
         "parent.html",
@@ -550,6 +574,7 @@ def parent_dashboard(request: Request, db: Session = Depends(get_db)) -> HTMLRes
         active_rewards=active_rewards,
         balances=balances,
         pending_completions=pending_completions,
+        pending_redemptions=pending_redemptions,
     )
 
 
@@ -649,23 +674,44 @@ def parent_undo_completion(completion_id: int) -> RedirectResponse:
 
 @app.post("/parent/undo-redemption/{redemption_id}", dependencies=[Depends(_require_parent_or_redirect)])
 def parent_undo_redemption(redemption_id: int) -> RedirectResponse:
-    """Undo a reward redemption. Deletes the row so the kid's balance
-    is restored. (For chore completions we keep the row as 'denied'
-    to preserve audit trail; redemptions don't have an approval step
-    so deletion is the simpler equivalent.)
+    """Undo a reward redemption.
+
+    Approved redemptions are deleted (the kid's balance is restored).
+    Pending redemptions are marked as 'denied' so the audit trail is
+    preserved. Denied redemptions have nothing to undo.
     """
     db = SessionLocal()
     try:
         r = db.get(models.RewardRedemption, redemption_id)
         if not r:
             return _redirect("/parent/history", error="That entry is gone.")
+        if r.status == models.STATUS_DENIED:
+            return _redirect(
+                "/parent/history",
+                error="That redemption is already undone.",
+            )
         reward = db.get(models.Reward, r.reward_id)
         reward_name = reward.name if reward else "(deleted reward)"
+        kid_name = r.kid.name
+        if r.status == models.STATUS_PENDING:
+            r.status = models.STATUS_DENIED
+            r.denial_reason = "Undone by parent"
+            r.points_spent = 0
+            db.commit()
+            return _redirect(
+                "/parent/history",
+                msg=f"↩️ Undid pending redemption of '{reward_name}' for {kid_name}.",
+            )
+        # Approved: delete the row to restore the balance
+        restored = r.points_spent or 0
         db.delete(r)
         db.commit()
         return _redirect(
             "/parent/history",
-            msg=f"↩️ Undid redemption of '{reward_name}' — {r.points_spent} points restored to {r.kid.name}.",
+            msg=(
+                f"↩️ Undid redemption of '{reward_name}' — "
+                f"{restored} points restored to {kid_name}."
+            ),
         )
     finally:
         db.close()
@@ -792,6 +838,53 @@ def kid_request_chore(
         db.close()
 
 
+@app.post("/kid/{kid_id}/request-reward")
+def kid_request_reward(
+    kid_id: int,
+    reward_id: Annotated[int, Form()],
+    note: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Kid-facing: log a pending reward redemption for a parent to approve.
+
+    No PIN required — kids are the intended users. The redemption lands
+    with `status='pending'` and `points_spent=0` (the real cost is
+    captured on approval so a reward edit between request and approval
+    doesn't rewrite history). A parent then approves from `/parent`,
+    where the balance is re-checked.
+
+    We don't block at request time even if the kid doesn't have enough
+    points — the parent might choose to be generous, or the kid might
+    earn more before the parent reviews. The parent dashboard shows the
+    kid's current balance so they can decide.
+    """
+    db = SessionLocal()
+    try:
+        kid = db.get(models.Kid, kid_id)
+        if not kid:
+            return _redirect("/", error="Unknown kid.")
+        reward = db.get(models.Reward, reward_id)
+        if not reward or not reward.is_active:
+            return _redirect(
+                f"/kid/{kid_id}", error="That reward isn't available right now."
+            )
+        db.add(
+            models.RewardRedemption(
+                kid_id=kid.id,
+                reward_id=reward.id,
+                points_spent=0,  # real cost is captured on approval
+                note=note.strip(),
+                status=models.STATUS_PENDING,
+            )
+        )
+        db.commit()
+        return _redirect(
+            f"/kid/{kid_id}",
+            msg=f"⏳ '{reward.name}' sent to a parent for approval!",
+        )
+    finally:
+        db.close()
+
+
 @app.post(
     "/parent/approve-completion/{completion_id}",
     dependencies=[Depends(_require_parent_or_redirect)],
@@ -872,6 +965,173 @@ def parent_deny_completion(
         return _redirect(
             "/parent",
             msg=f"Marked '{c.chore.name}' as not done.",
+        )
+    finally:
+        db.close()
+
+
+# ----- Reward redemption request workflow (kid-initiated) -----
+
+
+@app.get("/reward/{reward_id}", response_class=HTMLResponse)
+def kid_redeem_form(
+    reward_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    """Public kid-facing redemption form for a single reward.
+
+    No PIN required — kids are the intended users. Since /rewards is
+    public (no kid context), the form has a kid picker; the kid's
+    balance is shown per-kid via a small inline update (see
+    `data-show-balance` in reward.html). The actual cost is captured
+    at parent-approval time, so reward edits between request and
+    approval don't change what the kid sees here.
+    """
+    reward = db.get(models.Reward, reward_id)
+    if not reward or not reward.is_active:
+        raise HTTPException(status_code=404, detail="Reward not found")
+    kids = db.execute(select(models.Kid).order_by(models.Kid.name)).scalars().all()
+    balances = _kid_balances(db)
+    return _render(
+        request,
+        "reward.html",
+        db,
+        reward=reward,
+        kids=kids,
+        balances=balances,
+    )
+
+
+@app.post("/reward/{reward_id}/request")
+def kid_request_redemption(
+    reward_id: int,
+    kid_id: Annotated[int, Form()],
+    note: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Kid-facing: log a pending reward redemption for a parent to approve.
+
+    No PIN required — kids are the intended users. The redemption lands
+    with `status='pending'` and `points_spent=0` (the real cost is
+    captured on approval so a reward edit between request and approval
+    doesn't rewrite the kid's view). A parent then approves from
+    `/parent`, where the balance is re-checked.
+
+    We don't block at request time even if the kid doesn't have enough
+    points — the parent might choose to be generous, or the kid might
+    earn more before the parent reviews. The parent dashboard shows the
+    kid's current balance so they can decide.
+    """
+    db = SessionLocal()
+    try:
+        kid = db.get(models.Kid, kid_id)
+        if not kid:
+            return _redirect("/rewards", error="Unknown kid.")
+        reward = db.get(models.Reward, reward_id)
+        if not reward or not reward.is_active:
+            return _redirect("/rewards", error="That reward isn't available right now.")
+        db.add(
+            models.RewardRedemption(
+                kid_id=kid.id,
+                reward_id=reward.id,
+                points_spent=0,  # real cost is captured on approval
+                note=note.strip(),
+                status=models.STATUS_PENDING,
+            )
+        )
+        db.commit()
+        return _redirect(
+            f"/kid/{kid.id}",
+            msg=f"⏳ '{reward.name}' sent to a parent for approval!",
+        )
+    finally:
+        db.close()
+
+
+@app.post(
+    "/parent/approve-redemption/{redemption_id}",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_approve_redemption(redemption_id: int) -> RedirectResponse:
+    """Approve a pending reward redemption. Captures the cost into the
+    row (so future reward edits don't rewrite history) and stamps the
+    approval as the redemption time. Re-checks the kid's current
+    balance so an over-redemption can't sneak through.
+    """
+    db = SessionLocal()
+    try:
+        r = db.get(models.RewardRedemption, redemption_id)
+        if not r:
+            return _redirect("/parent", error="That request is gone.")
+        if r.status != models.STATUS_PENDING:
+            return _redirect("/parent", error="Already handled.")
+        reward = db.get(models.Reward, r.reward_id)
+        if not reward:
+            return _redirect("/parent", error="That reward is gone.")
+        # Re-compute the kid's balance from the current state. Pending
+        # redemptions are NOT subtracted yet, so the parent can approve
+        # them in any order as long as each fits.
+        completions = (
+            db.execute(
+                select(models.ChoreCompletion).where(models.ChoreCompletion.kid_id == r.kid_id)
+            )
+            .scalars()
+            .all()
+        )
+        redemptions = (
+            db.execute(
+                select(models.RewardRedemption).where(models.RewardRedemption.kid_id == r.kid_id)
+            )
+            .scalars()
+            .all()
+        )
+        balance = achievements.compute_balance(completions, redemptions)
+        if balance < reward.cost:
+            return _redirect(
+                "/parent",
+                error=(
+                    f"❌ {r.kid.name} only has {balance} points — "
+                    f"needs {reward.cost} for '{reward.name}'."
+                ),
+            )
+        r.status = models.STATUS_APPROVED
+        r.points_spent = reward.cost
+        r.redeemed_at = _utcnow()
+        r.denial_reason = ""
+        db.commit()
+        return _redirect(
+            "/parent",
+            msg=f"🎁 {r.kid.name} redeemed '{reward.name}' for {reward.cost} points!",
+        )
+    finally:
+        db.close()
+
+
+@app.post(
+    "/parent/deny-redemption/{redemption_id}",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_deny_redemption(
+    redemption_id: int,
+    reason: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Deny a pending reward redemption. Stores the reason so the kid
+    sees feedback on their timeline.
+    """
+    db = SessionLocal()
+    try:
+        r = db.get(models.RewardRedemption, redemption_id)
+        if not r:
+            return _redirect("/parent", error="That request is gone.")
+        if r.status != models.STATUS_PENDING:
+            return _redirect("/parent", error="Already handled.")
+        r.status = models.STATUS_DENIED
+        r.denial_reason = reason.strip()
+        r.points_spent = 0
+        db.commit()
+        return _redirect(
+            "/parent",
+            msg=f"Marked '{r.reward.name}' redemption as not done.",
         )
     finally:
         db.close()

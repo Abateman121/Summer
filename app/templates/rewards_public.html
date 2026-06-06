@@ -14,12 +14,13 @@
 {% if rewards %}
   <div class="rewards-grid">
     {% for r in rewards %}
-      <article class="card reward-card">
+      <a href="/reward/{{ r.id }}" class="card reward-card reward-card-link">
         <div class="reward-emoji">{{ r.emoji }}</div>
         <h2 class="reward-name">{{ r.name }}</h2>
         {% if r.description %}<p class="reward-desc">{{ r.description }}</p>{% endif %}
         <div class="reward-cost"><span class="reward-cost-num">{{ r.cost }}</span> <span class="pts">pts</span></div>
-      </article>
+        <div class="reward-cta muted small">Tap to redeem →</div>
+      </a>
     {% endfor %}
   </div>
 {% else %}

@@ -39,7 +39,7 @@
 </section>
 
 <section class="card">
-  <h2 class="section-title">📋 Pick a chore to do</h2>
+  <h2 class="section-title">📋 Submit Completed Chore</h2>
   {% if active_chores %}
     <form method="post" action="/kid/{{ kid.id }}/request-chore" class="quick-form">
       <div class="form-row">
@@ -59,6 +59,30 @@
     <p class="muted small">A parent will review and award the points.</p>
   {% else %}
     <p class="muted">No active chores. Ask a parent to add some.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">🎁 Submit a Reward Redemption</h2>
+  {% if active_rewards %}
+    <form method="post" action="/kid/{{ kid.id }}/request-reward" class="quick-form">
+      <div class="form-row">
+        <label for="rr-reward">Reward</label>
+        <select name="reward_id" id="rr-reward" required>
+          {% for r in active_rewards %}
+            <option value="{{ r.id }}">{{ r.emoji }} {{ r.name }} — {{ r.cost }} pts</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="rr-note">Note (optional)</label>
+        <input type="text" name="note" id="rr-note" maxlength="256" placeholder="Please!">
+      </div>
+      <button type="submit" class="btn btn-reward">Send to parent for approval</button>
+    </form>
+    <p class="muted small">A parent will review. They can decline if you don't have enough points yet.</p>
+  {% else %}
+    <p class="muted">No active rewards. Ask a parent to add some.</p>
   {% endif %}
 </section>
 
@@ -105,12 +129,29 @@
   {% if redemptions %}
     <ul class="timeline">
       {% for r in redemptions %}
-        <li class="timeline-item timeline-spend">
-          <span class="timeline-emoji">{{ r.reward.emoji }}</span>
+        <li class="timeline-item
+                   {%- if r.status == 'pending' %} timeline-pending
+                   {%- elif r.status == 'denied' %} timeline-denied
+                   {%- else %} timeline-spend{% endif %}">
+          <span class="timeline-emoji">
+            {%- if r.status == 'pending' %}⏳
+            {%- elif r.status == 'denied' %}✗
+            {%- else %}{{ r.reward.emoji }}{% endif %}
+          </span>
           <div class="timeline-body">
             <div class="timeline-title">
-              {{ r.reward.name }} <span class="timeline-pts timeline-pts-spend">-{{ r.points_spent }} pts</span>
+              {{ r.reward.name }}
+              {% if r.status == 'approved' %}
+                <span class="timeline-pts timeline-pts-spend">-{{ r.points_spent }} pts</span>
+              {% elif r.status == 'pending' %}
+                <span class="timeline-pts timeline-pts-pending">waiting for parent</span>
+              {% else %}
+                <span class="timeline-pts timeline-pts-denied">not approved</span>
+              {% endif %}
             </div>
+            {% if r.status == 'denied' and r.denial_reason %}
+              <div class="timeline-meta timeline-denial">"{{ r.denial_reason }}"</div>
+            {% endif %}
             <div class="timeline-meta">{{ r.redeemed_at | humantime }}{% if r.note %} — {{ r.note }}{% endif %}</div>
           </div>
         </li>

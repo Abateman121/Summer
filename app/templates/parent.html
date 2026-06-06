@@ -18,7 +18,7 @@
 
 {% if pending_completions %}
 <section class="card">
-  <h2 class="section-title">⏳ Pending approvals ({{ pending_completions|length }})</h2>
+  <h2 class="section-title">⏳ Pending chore approvals ({{ pending_completions|length }})</h2>
   <p class="muted small">Kids requested these. Approve to award points, or deny with a reason.</p>
   <ul class="manage-list">
     {% for c in pending_completions %}
@@ -43,6 +43,41 @@
             <form method="post" action="/parent/deny-completion/{{ c.id }}"
                   class="inline-form inline-action"
                   data-confirm="Deny {{ c.kid.name }}'s request for {{ c.chore.name }}?">
+              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
+              <button type="submit" class="btn btn-danger">✗ Deny</button>
+            </form>
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if pending_redemptions %}
+<section class="card">
+  <h2 class="section-title">⏳ Pending reward redemptions ({{ pending_redemptions|length }})</h2>
+  <p class="muted small">Kids requested these. Approve to charge points, or deny with a reason.</p>
+  <ul class="manage-list">
+    {% for r in pending_redemptions %}
+      <li class="manage-row">
+        <div class="pending-row">
+          <div class="pending-info">
+            <span class="pending-avatar">{{ r.kid.avatar_emoji }}</span>
+            <span class="pending-name">{{ r.kid.name }}</span>
+            <span class="pending-chore">{{ r.reward.emoji }} {{ r.reward.name }} <span class="muted">({{ r.reward.cost }} pts)</span></span>
+            <span class="pending-when">{{ r.redeemed_at | humantime }}</span>
+            <span class="pending-balance muted">Balance: {{ balances.get(r.kid_id, 0) }} pts</span>
+            {% if r.note %}<span class="pending-note">"{{ r.note }}"</span>{% endif %}
+          </div>
+          <div class="pending-actions">
+            <form method="post" action="/parent/approve-redemption/{{ r.id }}" class="inline-form inline-action">
+              <span class="pending-pts-label">{{ r.reward.cost }} pts</span>
+              <button type="submit" class="btn btn-reward">🎁 Approve</button>
+            </form>
+            <form method="post" action="/parent/deny-redemption/{{ r.id }}"
+                  class="inline-form inline-action"
+                  data-confirm="Deny {{ r.kid.name }}'s request for {{ r.reward.name }}?">
               <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
               <button type="submit" class="btn btn-danger">✗ Deny</button>
             </form>

@@ -63,13 +63,15 @@ def _run_light_migrations(engine) -> None:
     the model. Each statement here is wrapped to be a no-op on re-run.
     """
     statements: list[str] = [
-        # pending-approval workflow
+        # pending-approval workflow for chore completions
         "ALTER TABLE chore_completions ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'approved'",
         "ALTER TABLE chore_completions ADD COLUMN denial_reason VARCHAR(256) NOT NULL DEFAULT ''",
-        # make points_earned nullable (no SQLite ALTER; pre-existing rows are
-        # left as-is, the model just stops requiring it for new rows)
-        # Helpful index for the parent approvals queue
         "CREATE INDEX IF NOT EXISTS ix_chore_completions_status ON chore_completions (status)",
+        # pending-approval workflow for reward redemptions (mirrors the
+        # chore_completions changes; see app/models.py docstring)
+        "ALTER TABLE reward_redemptions ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'approved'",
+        "ALTER TABLE reward_redemptions ADD COLUMN denial_reason VARCHAR(256) NOT NULL DEFAULT ''",
+        "CREATE INDEX IF NOT EXISTS ix_reward_redemptions_status ON reward_redemptions (status)",
     ]
     with engine.begin() as conn:
         for stmt in statements:

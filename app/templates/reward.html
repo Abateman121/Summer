@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Redeem {{ reward.name }} — Summer{% endblock %}
+{% block body_class %}reward-redeem-page{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <a href="/rewards" class="back-link">← All rewards</a>
+</header>
+
+<article class="card reward-detail">
+  <div class="reward-emoji reward-emoji-lg">{{ reward.emoji }}</div>
+  <h1 class="reward-name">{{ reward.name }}</h1>
+  {% if reward.description %}<p class="reward-desc">{{ reward.description }}</p>{% endif %}
+  <div class="reward-cost">
+    <span class="reward-cost-num">{{ reward.cost }}</span> <span class="pts">pts</span>
+  </div>
+</article>
+
+<section class="card">
+  <h2 class="section-title">🎁 Redeem this reward</h2>
+  {% if kids %}
+    <form method="post" action="/reward/{{ reward.id }}/request" class="quick-form">
+      <div class="form-row">
+        <label for="rd-kid">Who's redeeming?</label>
+        <select name="kid_id" id="rd-kid" required>
+          {% for k in kids %}
+            <option value="{{ k.id }}">{{ k.avatar_emoji }} {{ k.name }} ({{ balances.get(k.id, 0) }} pts)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="rd-note">Note (optional)</label>
+        <input type="text" name="note" id="rd-note" maxlength="256" placeholder="Please!">
+      </div>
+      <button type="submit" class="btn btn-reward">Send to parent for approval</button>
+    </form>
+    <p class="muted small">A parent will review. They can decline if you don't have enough points yet.</p>
+  {% else %}
+    <p class="muted">No kids yet. Ask a parent to add some first.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

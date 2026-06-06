@@ -7,11 +7,14 @@ designed to be opened on a phone from anywhere on the home Wi-Fi.
 - **Track chores** with adjustable point values
 - **Award points** when a chore is marked complete (locked in at the time)
 - **Deduct points** when kids redeem rewards from a configurable catalog
+- **Kid-driven flow** — kids can submit chore completions and reward
+  redemptions for parent approval, no PIN required
 - **Lightweight** — single SQLite file, FastAPI + Jinja2, no JS framework
 - **Fun** — leaderboard, achievement badges, day streaks
 - **Printable** weekly summary for the fridge
 - **PWA** — "Add to Home Screen" on iOS feels like a native app
-- **Parented** — admin actions are PIN-gated; kids see a read-only view
+- **Parented** — admin actions are PIN-gated; kid submissions are
+  approved (or denied with a reason) from the parent dashboard
 
 ---
 
@@ -95,6 +98,10 @@ the completion / redemption record at the time of the event. If you change
 the 15 they earned. This is the whole point of the "earn at completion"
 behavior — see [app/models.py](app/models.py).
 
+For kid-initiated requests the value is captured at **approval time**, not
+request time, so an admin edit between request and approval doesn't shift
+the value the kid sees.
+
 ### Streak
 A kid's "day streak" is the length of the run of consecutive days with at
 least one chore completed, ending today or yesterday. They have until end
@@ -105,6 +112,25 @@ of day to extend an active streak; missing a full day resets it to 0. See
 Computed lazily from existing data — no scheduled job, no separate table.
 The badge is "earned" the moment the underlying condition is met. See
 `compute_badges` in [app/achievements.py](app/achievements.py).
+
+### Kid-initiated requests
+Kids can submit completed chores or redemption requests directly from
+their profile (or by clicking a reward on `/rewards`). The request lands
+in the parent's "Pending approvals" queue on `/parent` with `status =
+'pending'` and the point value unset. The parent can then:
+
+- **Approve** — captures the chore's points (or the reward's cost) into
+  the row at approval time, so edits in between don't change the value
+  the kid sees, and flips the status to `approved`.
+- **Deny with a reason** — the row stays in the audit trail with
+  `status = 'denied'`; the reason is shown back to the kid on their
+  timeline.
+- **Approve without enough points** — blocked; the parent sees a clear
+  error so they can't accidentally over-spend a kid's balance.
+
+Only `status = 'approved'` rows count toward balance, streak, badges,
+and the weekly summary. Pending rows are not counted anywhere until a
+parent decides their fate.
 
 ### Print view
 `/print` is a stand-alone layout with no nav, no bottom bar, no buttons
@@ -126,7 +152,7 @@ Summer/
 │   ├── achievements.py    # streak, balance, badge math (pure functions)
 │   ├── seed.py            # first-start example data
 │   ├── static/            # CSS, JS, icons
-│   └── templates/         # 10 Jinja2 pages
+│   └── templates/         # 11 Jinja2 pages
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
