@@ -154,9 +154,34 @@ Add a tiny `send_email(to, subject, body)` helper in `app/email.py`
 and unit-test it can be no-op'd in dev when `SMTP_HOST` is unset (log
 instead of send).
 
-This is needed for Feature A (invite emails when a parent invites
-another parent) and for general notifications (password reset, weekly
-summaries, etc.).
+This is needed for several use cases, **all** of which must be
+covered before the helper is "done":
+
+- **Parent invite email** (Feature A — when parent A invites parent B
+  to their family).
+- **Password reset email** (Feature A basic-auth path — when a
+  non-Authentik parent clicks "forgot password" on `/login`; the
+  reset link contains a one-time token that expires in an hour or
+  so. **Authentik users do not flow through this path** — their
+  password reset is handled by Authentik itself, per Feature B).
+- **Chore-completion alerts** — when a kid marks a chore as complete
+  (the pending-approval flow from v0.0.7), the parent(s) in that
+  family receive an email so they don't have to babysit the
+  `/parent` queue. Almost certainly opt-in per family (and probably
+  per parent within a family) rather than a global default — most
+  parents don't want an email per tooth-brushing. Digest mode
+  (daily summary) is probably a better default than per-event
+  email; expose a toggle on the family settings page.
+- **Test-fire email** (Feature E — the admin account has a "send
+  test email" button to confirm the SMTP wiring is working
+  end-to-end).
+- **General notifications** (weekly summaries, etc. — lower
+  priority, build when there's a concrete need).
+
+The helper should accept a `recipient`, `subject`, `body`, and
+optional `category` for log filtering (e.g. `"invite"`, `"reset"`,
+`"alert"`, `"test"`). The category is what makes the admin's
+"recent sent emails" log useful.
 
 ### Feature D — Negative points / point adjustments
 
@@ -203,3 +228,99 @@ a signed integer and skip the `max(0, ...)` clamp.
 
 The kid view would benefit from a timeline that shows deductions
 distinctly from earnings (different color, "−" instead of "+").
+
+### Feature E — Platform-level admin account
+
+Once we have any kind of auth (Feature A basic auth, Feature B
+Authentik) and any kind of outbound email (Feature C), we need a
+**platform-level** admin account that sits above the family level.
+The parent PIN and the family-scoped users in Feature A are
+*family* concerns; this admin is the *app* concern.
+
+**What the admin can do:**
+
+- **Reset passwords for any user.** Both basic-auth users
+  (Feature A) and any future auth method. For Authentik users
+  (Feature B) the admin can *trigger* a reset through the
+  Authentik API but can't see the actual password. For basic-auth
+  users the admin can issue a one-time reset link emailed to the
+  user, or set a temporary password directly.
+- **Fire test emails.** A "send test email to <address>" form on
+  the admin panel — uses the Feature C `send_email` helper to
+  confirm the SMTP wiring is working end-to-end.
+- **See the recent email log.** Filtered by category
+  (`invite` / `reset` / `alert` / `test`) and timestamp. This is
+  the "did the password reset email actually go out?" tool.
+- **Manage global settings.** Open-ended — anything that's
+  app-wide rather than per-family lives here. Examples that have
+  come up: feature flags, default reward catalog, SMTP credentials
+  UI (so the admin doesn't have to ssh in to change the Gmail
+  app password), per-family feature overrides, kill switches
+  (e.g. disable all chore-completion alerts globally during a
+  weekend trip).
+
+**Auth model for the admin themselves.** Two reasonable options:
+
+- Email + password (same shape as Feature A basic auth, but
+  stored in a separate `admin_users` table so a family-scoped
+  data export can't include admin credentials by accident).
+- A separate `ADMIN_PIN` env var, like the existing
+  `PARENT_PIN` but platform-level. Simpler, no password reset
+  loop needed, but a worse fit if the admin ever needs to
+  delegate (multiple admins). Pick one when implementing;
+  don't try to do both.
+
+**Setup flows — this is the load-bearing part.** Since the
+admin is a *new* concept, the project has to gracefully
+transition from "no admin exists" to "admin exists" in two
+different contexts:
+
+1. **New installs.** On first start, the app detects
+   `admin_users` is empty and refuses to serve normal traffic
+   until an admin is created. Most natural shape: a
+   `/setup-admin` route that the startup logic redirects all
+   requests to, presents a one-screen form (email, password /
+   PIN, confirm), and on submit creates the first admin row
+   and starts serving the normal app. No env-var seeding
+   needed; the form is the source of truth.
+2. **Upgrades from pre-admin versions** (i.e. anything shipped
+   before this feature lands). The existing single-tenant
+   install at `\\10.40.2.11\appdata\summer\summer.db` and any
+   other pre-existing instance needs an explicit path. Options:
+   - A CLI command (e.g. `python -m app create-admin`) the
+     operator runs once after pulling the new image. This is
+     the cleanest for Docker deployments because the upgrade
+     is two steps: pull, then run a one-off command.
+   - An "admin setup required" banner on `/parent` (and any
+     other authenticated route) with a link to `/setup-admin`,
+     visible only while `admin_users` is empty. Simpler for
+     non-CLI users but pollutes the parent UI with a
+     permanent-until-resolved warning.
+
+   The CLI command is preferred for production (Docker);
+   the banner is the fallback for bare-metal installs. Pick
+   at least one when implementing — *do not* ship the feature
+   without a defined upgrade path, otherwise existing
+   installs silently skip admin setup and the password-reset
+   features (Feature C) become useless.
+
+**Schema hints.** `admin_users` table with `id`, `email`,
+`password_hash` (or null if using the PIN option), `created_at`,
+`last_login_at`. A `password_reset_tokens` table (or columns on
+`admin_users`) for the admin's own password reset, separate
+from the family-user reset tokens. A `global_settings` key/value
+table (or a single-row `settings` table) for the
+open-ended "manage global settings" admin surface — don't
+prematurely add columns for settings we haven't thought of
+yet; a key/value table is easier to extend.
+
+**Relationship to other features.** The admin **uses** Feature
+C (SMTP) for test emails and as the transport for password
+reset emails to family users. The admin **manages** Feature A
+(basic auth) and Feature B (Authentik) users but doesn't
+*replace* them — the admin is platform-level, families are
+tenants. The admin's password reset is *also* a Feature C
+consumer (the admin themselves can have a "forgot admin
+password" flow, but that one needs a break-glass recovery
+mechanism since there's no higher authority to email — write
+that down in the spec when you get there).
