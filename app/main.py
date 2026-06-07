@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.1")
+app = FastAPI(title="Summer", version="0.1.2")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -176,6 +176,20 @@ REWARD_EMOJI_CHOICES: list[str] = [
 ]
 templates.env.globals["reward_emojis"] = REWARD_EMOJI_CHOICES
 
+# Suggested categories for the deduction form. The schema is a free-form
+# text field on Deduction.category so the parent can tag new behavior
+# types without a migration — the suggestions are just datalist entries
+# in the input for the common cases.
+DEDUCTION_CATEGORY_SUGGESTIONS: list[str] = [
+    "Behavior",
+    "Missed routine",
+    "Attitude",
+    "Talking back",
+    "Fighting",
+    "Other",
+]
+templates.env.globals["deduction_categories"] = DEDUCTION_CATEGORY_SUGGESTIONS
+
 
 # ---------------------------------------------------------------------------
 # 2. Startup / shutdown
@@ -208,7 +222,8 @@ def _kid_balances(db: Session) -> dict[int, int]:
 
     Only approved completions and redemptions count toward the balance —
     pending requests haven't been awarded/spent yet, and denied rows
-    shouldn't affect anything.
+    shouldn't affect anything. Deductions (which are always negative)
+    are summed into the spent side of the ledger.
     """
     earned_rows = db.execute(
         select(models.ChoreCompletion.kid_id, func.coalesce(func.sum(models.ChoreCompletion.points_earned), 0))
@@ -220,13 +235,21 @@ def _kid_balances(db: Session) -> dict[int, int]:
         .where(models.RewardRedemption.status == models.STATUS_APPROVED)
         .group_by(models.RewardRedemption.kid_id)
     ).all()
+    deducted_rows = db.execute(
+        select(models.Deduction.kid_id, func.coalesce(func.sum(models.Deduction.points), 0))
+        .group_by(models.Deduction.kid_id)
+    ).all()
     earned = {kid_id: total for kid_id, total in earned_rows}
     spent = {kid_id: total for kid_id, total in spent_rows}
+    deducted = {kid_id: total for kid_id, total in deducted_rows}
     balances: dict[int, int] = defaultdict(int)
     for kid_id, total in earned.items():
         balances[kid_id] += total
     for kid_id, total in spent.items():
         balances[kid_id] -= total
+    for kid_id, total in deducted.items():
+        # `deductions.points` is always negative or zero, so this subtracts
+        balances[kid_id] += total
     return dict(balances)
 
 
@@ -252,6 +275,23 @@ def _kid_weekly_spent(db: Session) -> dict[int, int]:
         .where(models.RewardRedemption.redeemed_at < week_end_utc)
         .where(models.RewardRedemption.status == models.STATUS_APPROVED)
         .group_by(models.RewardRedemption.kid_id)
+    ).all()
+    return {kid_id: total for kid_id, total in rows}
+
+
+def _kid_weekly_deducted(db: Session) -> dict[int, int]:
+    """Sum of deduction points per kid in the current (Mon-Sun) week.
+
+    Returns a non-positive number per kid (deductions.points is always
+    negative or zero). Used by the printable summary to show the week's
+    negative impact alongside earnings and redemptions.
+    """
+    week_start_utc, week_end_utc = achievements.week_bounds()
+    rows = db.execute(
+        select(models.Deduction.kid_id, func.coalesce(func.sum(models.Deduction.points), 0))
+        .where(models.Deduction.created_at >= week_start_utc)
+        .where(models.Deduction.created_at < week_end_utc)
+        .group_by(models.Deduction.kid_id)
     ).all()
     return {kid_id: total for kid_id, total in rows}
 
@@ -364,7 +404,14 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         .scalars()
         .all()
     )
-    balance = achievements.compute_balance(all_completions, all_redemptions)
+    all_deductions = (
+        db.execute(
+            select(models.Deduction).where(models.Deduction.kid_id == kid_id)
+        )
+        .scalars()
+        .all()
+    )
+    balance = achievements.compute_balance(all_completions, all_redemptions, all_deductions)
     streak = achievements.compute_streak(all_completions)
     badges = achievements.compute_badges(all_completions, all_redemptions)
     active_chores = (
@@ -385,6 +432,16 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         .scalars()
         .all()
     )
+    recent_deductions = (
+        db.execute(
+            select(models.Deduction)
+            .where(models.Deduction.kid_id == kid_id)
+            .order_by(models.Deduction.created_at.desc())
+            .limit(25)
+        )
+        .scalars()
+        .all()
+    )
     return _render(
         request,
         "kid.html",
@@ -392,6 +449,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         kid=kid,
         completions=completions,
         redemptions=redemptions,
+        deductions=recent_deductions,
         balance=balance,
         streak=streak,
         badges=badges,
@@ -449,6 +507,7 @@ def printable_summary(request: Request, db: Session = Depends(get_db)) -> HTMLRe
     balances = _kid_balances(db)
     weekly_earned = _kid_weekly_earned(db)
     weekly_spent = _kid_weekly_spent(db)
+    weekly_deducted = _kid_weekly_deducted(db)
     week_start_utc, _ = achievements.week_bounds()
 
     # This-week activity per kid, oldest first
@@ -471,6 +530,15 @@ def printable_summary(request: Request, db: Session = Depends(get_db)) -> HTMLRe
     for r in rows:
         this_week_redemptions[r.kid_id].append(r)
 
+    this_week_deductions: dict[int, list[models.Deduction]] = defaultdict(list)
+    rows = db.execute(
+        select(models.Deduction)
+        .where(models.Deduction.created_at >= week_start_utc)
+        .order_by(models.Deduction.created_at.asc())
+    ).scalars().all()
+    for d in rows:
+        this_week_deductions[d.kid_id].append(d)
+
     return _render(
         request,
         "print.html",
@@ -479,8 +547,10 @@ def printable_summary(request: Request, db: Session = Depends(get_db)) -> HTMLRe
         balances=balances,
         weekly_earned=weekly_earned,
         weekly_spent=weekly_spent,
+        weekly_deducted=weekly_deducted,
         this_week_completions=this_week_completions,
         this_week_redemptions=this_week_redemptions,
+        this_week_deductions=this_week_deductions,
     )
 
 
@@ -1137,6 +1207,144 @@ def parent_deny_redemption(
         db.close()
 
 
+# ----- Deductions for negative behaviors -----
+
+
+@app.post("/parent/deductions/add", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_deductions_add(
+    kid_id: Annotated[int, Form()],
+    points: Annotated[str, Form()],
+    category: Annotated[str, Form()] = "",
+    reason: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Deduct points from a kid for a negative behavior (fighting,
+    missed routine, etc.). The form takes a positive number and we
+    negate it before storing; the schema allows any signed integer so
+    the parent can also enter a negative number directly if they
+    prefer.
+
+    Deductions are parent-driven and auto-count — no approval workflow.
+    They show up in the kid's timeline and on /parent/history, and the
+    balance math sums their (always-negative) `points` automatically.
+    """
+    db = SessionLocal()
+    try:
+        kid = db.get(models.Kid, kid_id)
+        if not kid:
+            return _redirect("/parent", error="Unknown kid.")
+        try:
+            raw = int(points)
+        except ValueError:
+            return _redirect(
+                "/parent", error="Points must be a whole number, or blank."
+            )
+        if raw == 0:
+            return _redirect("/parent", error="Deduction must be non-zero.")
+        # Normalize: a positive input is "deduct N points" (store as -N).
+        # A negative input is accepted as-is (in case the parent types -10).
+        actual = -abs(raw)
+        db.add(
+            models.Deduction(
+                kid_id=kid.id,
+                points=actual,
+                category=category.strip(),
+                reason=reason.strip(),
+            )
+        )
+        db.commit()
+        cat = category.strip() or "behavior"
+        return _redirect(
+            "/parent",
+            msg=f"➖ Deducted {abs(actual)} points from {kid.name} ({cat}).",
+        )
+    finally:
+        db.close()
+
+
+@app.post(
+    "/parent/deductions/{deduction_id}/delete",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_deductions_delete(deduction_id: int) -> RedirectResponse:
+    """Delete a deduction row (e.g. the parent made a mistake). The
+    kid's balance recomputes on next read.
+    """
+    db = SessionLocal()
+    try:
+        d = db.get(models.Deduction, deduction_id)
+        if not d:
+            return _redirect("/parent/history", error="That entry is gone.")
+        kid_name = d.kid.name
+        magnitude = abs(d.points)
+        db.delete(d)
+        db.commit()
+        return _redirect(
+            "/parent/history",
+            msg=f"↩️ Removed deduction — {magnitude} points back to {kid_name}.",
+        )
+    finally:
+        db.close()
+
+
+# ----- Adjust already-approved chore completion point values -----
+
+
+@app.post(
+    "/parent/adjust-completion/{completion_id}",
+    dependencies=[Depends(_require_parent_or_redirect)],
+)
+def parent_adjust_completion(
+    completion_id: int,
+    new_points: Annotated[str, Form()],
+) -> RedirectResponse:
+    """Adjust the point value of an already-approved chore completion
+    in place. The denormalized `points_earned` is the source of truth —
+    the balance / lifetime / streak recompute correctly because they
+    sum the stored value. Any signed integer is accepted (positive,
+    negative, or zero) per Feature D.1.
+
+    Only approved completions can be adjusted. Pending rows are still
+    being decided and should be approved/denied, not edited. Denied
+    rows have nothing to adjust.
+    """
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChoreCompletion, completion_id)
+        if not c:
+            return _redirect("/parent/history", error="That entry is gone.")
+        if c.status != models.STATUS_APPROVED:
+            return _redirect(
+                "/parent/history",
+                error="Only approved completions can be adjusted.",
+            )
+        try:
+            new_val = int(new_points)
+        except ValueError:
+            return _redirect(
+                "/parent/history",
+                error="New points must be a whole number.",
+            )
+        old_val = c.points_earned or 0
+        c.points_earned = new_val
+        db.commit()
+        diff = new_val - old_val
+        if diff == 0:
+            return _redirect(
+                "/parent/history",
+                msg=f"No change to '{c.chore.name}' ({new_val} pts).",
+            )
+        direction = "increased" if diff > 0 else "decreased"
+        return _redirect(
+            "/parent/history",
+            msg=(
+                f"✏️ {c.kid.name}'s '{c.chore.name}' {direction} from "
+                f"{old_val} to {new_val} pts ({'+' if diff > 0 else ''}{diff})."
+            ),
+        )
+    finally:
+        db.close()
+
+
 @app.get("/parent/history", response_class=HTMLResponse, dependencies=[Depends(_require_parent_or_redirect)])
 def parent_history(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     completions = (
@@ -1157,6 +1365,15 @@ def parent_history(request: Request, db: Session = Depends(get_db)) -> HTMLRespo
         .scalars()
         .all()
     )
+    deductions = (
+        db.execute(
+            select(models.Deduction)
+            .order_by(models.Deduction.created_at.desc())
+            .limit(200)
+        )
+        .scalars()
+        .all()
+    )
     kids = {k.id: k for k in db.execute(select(models.Kid)).scalars().all()}
     return _render(
         request,
@@ -1164,6 +1381,7 @@ def parent_history(request: Request, db: Session = Depends(get_db)) -> HTMLRespo
         db,
         completions=completions,
         redemptions=redemptions,
+        deductions=deductions,
         kids=kids,
     )
 

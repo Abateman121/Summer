@@ -27,6 +27,7 @@
       <div class="print-totals">
         <span><strong>This week earned:</strong> +{{ weekly_earned.get(kid.id, 0) }}</span>
         <span><strong>Redeemed:</strong> -{{ weekly_spent.get(kid.id, 0) }}</span>
+        <span><strong>Deducted:</strong> {{ weekly_deducted.get(kid.id, 0) }}</span>
       </div>
 
       <div class="print-columns">
@@ -39,12 +40,30 @@
                 <li>
                   <span class="print-date">{{ c.completed_at | humantime }}</span>
                   <span class="print-name">{{ c.chore.name }}</span>
-                  <span class="print-pts">+{{ c.points_earned }}</span>
+                  <span class="print-pts">{{ '%+d' % (c.points_earned or 0) }}</span>
                 </li>
               {% endfor %}
             </ul>
           {% else %}
             <p class="print-muted">No chores yet this week.</p>
+          {% endif %}
+        </div>
+
+        <div class="print-col">
+          <h3>➖ Deductions</h3>
+          {% set kids_deductions = this_week_deductions.get(kid.id, []) %}
+          {% if kids_deductions %}
+            <ul class="print-list">
+              {% for d in kids_deductions %}
+                <li>
+                  <span class="print-date">{{ d.created_at | humantime }}</span>
+                  <span class="print-name">{% if d.category %}{{ d.category }}{% endif %}{% if d.reason %} — {{ d.reason }}{% endif %}</span>
+                  <span class="print-pts print-pts-deduct">{{ d.points }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="print-muted">No deductions this week.</p>
           {% endif %}
         </div>
 

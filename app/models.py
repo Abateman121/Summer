@@ -34,6 +34,9 @@ class Kid(Base):
     redemptions: Mapped[list["RewardRedemption"]] = relationship(
         back_populates="kid", cascade="all, delete-orphan"
     )
+    deductions: Mapped[list["Deduction"]] = relationship(
+        back_populates="kid", cascade="all, delete-orphan"
+    )
 
 
 class Category(Base):
@@ -146,3 +149,36 @@ class RewardRedemption(Base):
 
     kid: Mapped[Kid] = relationship(back_populates="redemptions")
     reward: Mapped[Reward] = relationship(back_populates="redemptions")
+
+
+class Deduction(Base):
+    """A parent-driven point deduction for a negative behavior (fighting,
+    missed routine, attitude, etc.). Always carries a negative `points`
+    value so the existing balance math (sum of earned - sum of spent)
+    works without a separate column — we just add deductions to the
+    `spent` side of the ledger.
+
+    Unlike ChoreCompletion and RewardRedemption, deductions are never
+    `pending` — they're created directly by the parent and count
+    immediately. The "category" field is a free-form text with a small
+    set of suggestions surfaced in the UI (see `DEDUCTION_CATEGORY_SUGGESTIONS`
+    in main.py); the schema does not constrain it so the parent can tag
+    new kinds of behavior without a migration.
+    """
+
+    __tablename__ = "deductions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kid_id: Mapped[int] = mapped_column(
+        ForeignKey("kids.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Always negative. We store the sign so a single SUM(points) gives
+    # the lifetime deduction total without needing a separate column.
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    category: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    reason: Mapped[str] = mapped_column(String(256), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False, index=True
+    )
+
+    kid: Mapped[Kid] = relationship(back_populates="deductions")

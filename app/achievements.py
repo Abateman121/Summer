@@ -50,16 +50,31 @@ def _approved_only(
 def compute_balance(
     completions: list[models.ChoreCompletion],
     redemptions: list[models.RewardRedemption],
+    deductions: list[models.Deduction] | None = None,
 ) -> int:
-    """Current point balance = lifetime earned (approved) - lifetime spent."""
+    """Current point balance = lifetime earned (approved) - lifetime spent
+    + lifetime deducted.
+
+    `deductions` are rows on the Deduction table; their `points` field is
+    always negative or zero, so summing them and adding to the ledger
+    naturally subtracts from the balance. An empty/None list is treated
+    as zero deductions — existing call sites that don't pass a deductions
+    list continue to work unchanged.
+    """
     approved = _approved_only(completions)
     earned = sum(c.points_earned or 0 for c in approved)
     spent = sum(r.points_spent for r in redemptions)
-    return earned - spent
+    deducted = sum(d.points for d in (deductions or []))
+    return earned - spent + deducted
 
 
 def compute_lifetime_earned(completions: list[models.ChoreCompletion]) -> int:
     return sum(c.points_earned or 0 for c in _approved_only(completions))
+
+
+def compute_lifetime_deducted(deductions: list[models.Deduction]) -> int:
+    """Total points deducted (negative or zero)."""
+    return sum(d.points for d in deductions)
 
 
 def compute_streak(

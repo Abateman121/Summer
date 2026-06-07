@@ -38,11 +38,22 @@
             <td class="note">{{ c.note or '' }}</td>
             <td>
               {% if c.status == 'approved' %}
-                <form method="post" action="/parent/undo-completion/{{ c.id }}"
-                      data-confirm="Undo {{ kids[c.kid_id].name }}'s '{{ c.chore.name }}' completion? The points will be removed from their balance."
-                      class="history-undo">
-                  <button type="submit" class="btn btn-undo">↩️ Undo</button>
-                </form>
+                <div class="history-row-actions">
+                  <form method="post" action="/parent/adjust-completion/{{ c.id }}"
+                        data-confirm="Adjust {{ kids[c.kid_id].name }}'s '{{ c.chore.name }}' to the entered point value? (Currently {{ c.points_earned or 0 }})"
+                        class="history-adjust">
+                    <input type="number" name="new_points" value="{{ c.points_earned or 0 }}" step="1"
+                           class="pending-pts history-pts"
+                           title="New point value (can be negative)"
+                           aria-label="New point value">
+                    <button type="submit" class="btn btn-undo" title="Save new point value">✏️</button>
+                  </form>
+                  <form method="post" action="/parent/undo-completion/{{ c.id }}"
+                        data-confirm="Undo {{ kids[c.kid_id].name }}'s '{{ c.chore.name }}' completion? The points will be removed from their balance."
+                        class="history-undo">
+                    <button type="submit" class="btn btn-undo">↩️ Undo</button>
+                  </form>
+                </div>
               {% endif %}
             </td>
           </tr>
@@ -51,6 +62,37 @@
     </table>
   {% else %}
     <p class="muted">No completions yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">➖ Deductions</h2>
+  {% if deductions %}
+    <table class="history-table">
+      <thead>
+        <tr><th>When</th><th>Kid</th><th>Category</th><th>Reason</th><th>Points</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for d in deductions %}
+          <tr class="history-row-deduction">
+            <td class="when">{{ d.created_at | humantime }}</td>
+            <td>{{ kids[d.kid_id].avatar_emoji }} {{ kids[d.kid_id].name }}</td>
+            <td>{{ d.category or '—' }}</td>
+            <td class="note">{{ d.reason or '' }}</td>
+            <td class="pts-deduct">{{ d.points }}</td>
+            <td>
+              <form method="post" action="/parent/deductions/{{ d.id }}/delete"
+                    data-confirm="Remove this {{ -d.points }}-pt deduction from {{ kids[d.kid_id].name }}? The points will be added back to their balance."
+                    class="history-undo">
+                <button type="submit" class="btn btn-undo">↩️ Undo</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No deductions yet.</p>
   {% endif %}
 </section>
 

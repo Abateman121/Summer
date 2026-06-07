@@ -472,6 +472,38 @@ code {
   margin-top: 4px;
 }
 
+/* Deduction timeline item on the kid's profile. Distinct from the
+   approval/denial styling — these are real, counted events that took
+   points away. */
+.timeline-deduction {
+  background: rgba(239, 68, 68, 0.05);
+  border-left: 3px solid var(--danger);
+  padding-left: 8px;
+  margin-left: -8px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.timeline-pts-deduct { color: var(--danger-dark); font-weight: 700; margin-left: 6px; }
+.timeline-cat {
+  display: inline-block;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.timeline-deduction-reason {
+  font-style: italic;
+  color: var(--text);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+}
+
 /* Pending approvals section on the parent dashboard. */
 .pending-row {
   display: flex;
@@ -818,7 +850,35 @@ code {
 .history-table .when { white-space: nowrap; color: var(--text-muted); }
 .history-table .pts-earn { color: var(--success-dark); font-weight: 700; }
 .history-table .pts-spend { color: var(--reward-dark); font-weight: 700; }
+.history-table .pts-deduct { color: var(--danger-dark); font-weight: 700; }
 .history-table .note { color: var(--text-muted); font-style: italic; }
+.history-row-deduction td { background: rgba(239, 68, 68, 0.04); }
+.history-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.history-pts {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: right;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--text);
+  font-family: inherit;
+  margin: 0;
+}
+.history-pts:focus { border-color: var(--primary); outline: none; }
+:root[data-theme="dark"] .history-pts {
+  background: #1f1f1f;
+  color: var(--text);
+  border-color: var(--border);
+}
+.history-adjust { margin: 0; display: inline-flex; gap: 4px; align-items: center; }
 
 @media (max-width: 600px) {
   .history-table { font-size: 0.8rem; }

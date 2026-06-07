@@ -65,12 +65,13 @@ body.print-page {
   font-size: 10pt;
   margin-bottom: 10px;
   color: #555;
+  flex-wrap: wrap;
 }
 
 .print-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
 }
 .print-col h3 {
   font-size: 11pt;
@@ -94,6 +95,7 @@ body.print-page {
 .print-date { color: #777; font-size: 8.5pt; }
 .print-pts { font-weight: 700; }
 .print-pts-spend { color: #b91c1c; }
+.print-pts-deduct { color: #b91c1c; font-style: italic; }
 .print-muted { color: #999; font-style: italic; font-size: 9pt; margin: 0; }
 
 .print-footer {

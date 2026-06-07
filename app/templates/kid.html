@@ -104,7 +104,7 @@
             <div class="timeline-title">
               {{ c.chore.name }}
               {% if c.status == 'approved' %}
-                <span class="timeline-pts">+{{ c.points_earned }} pts</span>
+                <span class="timeline-pts">{{ '%+d' % (c.points_earned or 0) }} pts</span>
               {% elif c.status == 'pending' %}
                 <span class="timeline-pts timeline-pts-pending">waiting for parent</span>
               {% else %}
@@ -161,5 +161,28 @@
     <p class="muted">No rewards redeemed yet — keep stacking those points!</p>
   {% endif %}
 </section>
+
+{% if deductions %}
+<section class="card">
+  <h2 class="section-title">➖ Deductions</h2>
+  <ul class="timeline">
+    {% for d in deductions %}
+      <li class="timeline-item timeline-deduction">
+        <span class="timeline-emoji">⚠️</span>
+        <div class="timeline-body">
+          <div class="timeline-title">
+            {% if d.category %}<span class="timeline-cat">{{ d.category }}</span>{% endif %}
+            <span class="timeline-pts timeline-pts-deduct">{{ d.points }} pts</span>
+          </div>
+          {% if d.reason %}
+            <div class="timeline-meta timeline-deduction-reason">"{{ d.reason }}"</div>
+          {% endif %}
+          <div class="timeline-meta">{{ d.created_at | humantime }}</div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 {% endblock %}

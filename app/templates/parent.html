@@ -164,4 +164,43 @@
   {% endif %}
 </section>
 
+<section class="card">
+  <h2 class="section-title">➖ Deduct points (behavior)</h2>
+  {% if not kids %}
+    <p class="muted">No kids yet. <a href="/parent/kids">Add a kid first →</a></p>
+  {% else %}
+    <form method="post" action="/parent/deductions/add" class="quick-form">
+      <div class="form-row">
+        <label for="dd-kid">Kid</label>
+        <select name="kid_id" id="dd-kid" required>
+          {% for k in kids %}
+            <option value="{{ k.id }}">{{ k.avatar_emoji }} {{ k.name }} ({{ balances.get(k.id, 0) }} pts)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="dd-pts">Points to deduct</label>
+        <input type="number" name="points" id="dd-pts" min="1" step="1" required
+               placeholder="e.g. 10 (we'll deduct it from the balance)">
+      </div>
+      <div class="form-row">
+        <label for="dd-cat">Category</label>
+        <input type="text" name="category" id="dd-cat" list="deduction-category-list"
+               maxlength="64" placeholder="Behavior / Missed routine / …">
+        <datalist id="deduction-category-list">
+          {% for c in deduction_categories %}
+            <option value="{{ c }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="form-row">
+        <label for="dd-reason">Reason (optional)</label>
+        <input type="text" name="reason" id="dd-reason" maxlength="256" placeholder="Fought with sibling at dinner">
+      </div>
+      <button type="submit" class="btn btn-danger">Deduct points</button>
+    </form>
+    <p class="muted small">Deductions count immediately and can be removed later from <a href="/parent/history">History</a>.</p>
+  {% endif %}
+</section>
+
 {% endblock %}
