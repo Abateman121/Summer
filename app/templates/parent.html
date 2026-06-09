@@ -43,7 +43,7 @@
             <form method="post" action="/parent/deny-completion/{{ c.id }}"
                   class="inline-form inline-action"
                   data-confirm="Deny {{ c.kid.name }}'s request for {{ c.chore.name }}?">
-              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
+              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason" autocomplete="off">
               <button type="submit" class="btn btn-danger">✗ Deny</button>
             </form>
           </div>
@@ -78,7 +78,7 @@
             <form method="post" action="/parent/deny-redemption/{{ r.id }}"
                   class="inline-form inline-action"
                   data-confirm="Deny {{ r.kid.name }}'s request for {{ r.reward.name }}?">
-              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason">
+              <input type="text" name="reason" maxlength="256" placeholder="Reason (optional)" class="pending-reason" autocomplete="off">
               <button type="submit" class="btn btn-danger">✗ Deny</button>
             </form>
           </div>
@@ -120,7 +120,7 @@
       </div>
       <div class="form-row">
         <label for="cc-note">Note (optional)</label>
-        <input type="text" name="note" id="cc-note" maxlength="256" placeholder="Did an extra-good job">
+        <input type="text" name="note" id="cc-note" maxlength="256" placeholder="Did an extra-good job" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-primary">Award points</button>
     </form>
@@ -157,7 +157,7 @@
       </div>
       <div class="form-row">
         <label for="rd-note">Note (optional)</label>
-        <input type="text" name="note" id="rd-note" maxlength="256" placeholder="On Saturday">
+        <input type="text" name="note" id="rd-note" maxlength="256" placeholder="On Saturday" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-reward">Redeem</button>
     </form>
@@ -186,7 +186,7 @@
       <div class="form-row">
         <label for="dd-cat">Category</label>
         <input type="text" name="category" id="dd-cat" list="deduction-category-list"
-               maxlength="64" placeholder="Behavior / Missed routine / …">
+               maxlength="64" placeholder="Behavior / Missed routine / …" autocomplete="off">
         <datalist id="deduction-category-list">
           {% for c in deduction_categories %}
             <option value="{{ c }}"></option>
@@ -195,7 +195,7 @@
       </div>
       <div class="form-row">
         <label for="dd-reason">Reason (optional)</label>
-        <input type="text" name="reason" id="dd-reason" maxlength="256" placeholder="Fought with sibling at dinner">
+        <input type="text" name="reason" id="dd-reason" maxlength="256" placeholder="Fought with sibling at dinner" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-danger">Deduct points</button>
     </form>

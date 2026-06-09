@@ -52,7 +52,7 @@
       </div>
       <div class="form-row">
         <label for="rq-note">Note (optional)</label>
-        <input type="text" name="note" id="rq-note" maxlength="256" placeholder="Did an extra-good job">
+        <input type="text" name="note" id="rq-note" maxlength="256" placeholder="Did an extra-good job" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-primary">Send to parent for approval</button>
     </form>
@@ -76,7 +76,7 @@
       </div>
       <div class="form-row">
         <label for="rr-note">Note (optional)</label>
-        <input type="text" name="note" id="rr-note" maxlength="256" placeholder="Please!">
+        <input type="text" name="note" id="rr-note" maxlength="256" placeholder="Please!" autocomplete="off">
       </div>
       <button type="submit" class="btn btn-reward">Send to parent for approval</button>
     </form>
@@ -87,7 +87,7 @@
 </section>
 
 <section class="card">
-  <h2 class="section-title">ðŸ”¥ Point History</h2>
+  <h2 class="section-title">🔥 Point History</h2>
   {% if point_history %}
     <ul class="timeline">
       {% for transaction in point_history %}
