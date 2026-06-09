@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.2")
+app = FastAPI(title="Summer", version="0.1.3")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET. Set
 # https_only=True in production behind HTTPS.
@@ -375,7 +375,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
             select(models.ChoreCompletion)
             .where(models.ChoreCompletion.kid_id == kid_id)
             .order_by(models.ChoreCompletion.completed_at.desc())
-            .limit(25)
+            .limit(200)
         )
         .scalars()
         .all()
@@ -385,7 +385,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
             select(models.RewardRedemption)
             .where(models.RewardRedemption.kid_id == kid_id)
             .order_by(models.RewardRedemption.redeemed_at.desc())
-            .limit(25)
+            .limit(200)
         )
         .scalars()
         .all()
@@ -437,11 +437,60 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
             select(models.Deduction)
             .where(models.Deduction.kid_id == kid_id)
             .order_by(models.Deduction.created_at.desc())
-            .limit(25)
+            .limit(200)
         )
         .scalars()
         .all()
     )
+
+    # Create combined point history for display
+    point_history = []
+
+    # Add chore completions/earnings
+    for completion in completions:
+        point_history.append({
+            'date': completion.completed_at,
+            'description': completion.chore.name if completion.chore else 'Unknown chore',
+            'points': completion.points_earned or 0,
+            'points_type': 'earned' if (completion.points_earned or 0) > 0 else 'spent',
+            'status': completion.status,
+            'note': completion.note,
+            'type': 'chore',
+            'denial_reason': completion.denial_reason,
+            'chore': completion.chore
+        })
+
+    # Add reward redemptions/spendings
+    for redemption in redemptions:
+        point_history.append({
+            'date': redemption.redeemed_at,
+            'description': redemption.reward.name if redemption.reward else 'Unknown reward',
+            'points': -(redemption.points_spent or 0),  # Negative for spending
+            'points_type': 'spent',
+            'status': redemption.status,
+            'note': redemption.note,
+            'type': 'reward',
+            'denial_reason': redemption.denial_reason,
+            'reward': redemption.reward
+        })
+
+    # Add deductions
+    for deduction in recent_deductions:
+        point_history.append({
+            'date': deduction.created_at,
+            'description': deduction.category or 'Behavior',
+            'points': deduction.points,  # Already negative
+            'points_type': 'spent',
+            'status': 'approved',  # Deductions are always approved/immediate
+            'note': deduction.reason,
+            'type': 'deduction',
+            'denial_reason': '',
+            'deduction': deduction
+        })
+
+    # Sort by date, most recent first
+    point_history.sort(key=lambda x: x['date'], reverse=True)
+
     return _render(
         request,
         "kid.html",
@@ -450,6 +499,7 @@ def kid_detail(kid_id: int, request: Request, db: Session = Depends(get_db)) -> 
         completions=completions,
         redemptions=redemptions,
         deductions=recent_deductions,
+        point_history=point_history,
         balance=balance,
         streak=streak,
         badges=badges,

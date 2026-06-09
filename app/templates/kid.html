@@ -87,102 +87,43 @@
 </section>
 
 <section class="card">
-  <h2 class="section-title">✅ Recent Chores</h2>
-  {% if completions %}
+  <h2 class="section-title">ðŸ”¥ Point History</h2>
+  {% if point_history %}
     <ul class="timeline">
-      {% for c in completions %}
+      {% for transaction in point_history %}
         <li class="timeline-item
-                   {%- if c.status == 'pending' %} timeline-pending
-                   {%- elif c.status == 'denied' %} timeline-denied
-                   {%- else %} timeline-earn{% endif %}">
+                   {%- if transaction.status == 'pending' %} timeline-pending
+                   {%- elif transaction.status == 'denied' %} timeline-denied
+                   {%- elif transaction.type == 'chore' %} timeline-earn
+                   {%- elif transaction.type == 'reward' %} timeline-spend
+                   {%- elif transaction.type == 'deduction' %} timeline-deduction{% endif %}">
           <span class="timeline-emoji">
-            {%- if c.status == 'pending' %}⏳
-            {%- elif c.status == 'denied' %}✗
-            {%- else %}✨{% endif %}
+            {%- if transaction.status == 'pending' %}⏳
+            {%- elif transaction.status == 'denied' %}✗
+            {%- elif transaction.type == 'chore' %}✨
+            {%- elif transaction.type == 'reward' %}{% if transaction.points >= 0 %}{{ transaction.reward.emoji if transaction.reward else '🎁' }}{% else %}{{ transaction.reward.emoji if transaction.reward else '🎁' }}{% endif %}
+            {%- elif transaction.type == 'deduction' %}⚠️{% endif %}
           </span>
           <div class="timeline-body">
             <div class="timeline-title">
-              {{ c.chore.name }}
-              {% if c.status == 'approved' %}
-                <span class="timeline-pts">{{ '%+d' % (c.points_earned or 0) }} pts</span>
-              {% elif c.status == 'pending' %}
-                <span class="timeline-pts timeline-pts-pending">waiting for parent</span>
+              {{ transaction.description }}
+              {% if transaction.points >= 0 %}
+                <span class="timeline-pts timeline-pts-earn">+{{ transaction.points }} pts</span>
               {% else %}
-                <span class="timeline-pts timeline-pts-denied">not approved</span>
+                <span class="timeline-pts timeline-pts-spend">{{ transaction.points }} pts</span>
               {% endif %}
             </div>
-            {% if c.status == 'denied' and c.denial_reason %}
-              <div class="timeline-meta timeline-denial">"{{ c.denial_reason }}"</div>
+            {% if transaction.status == 'denied' and transaction.denial_reason %}
+              <div class="timeline-meta timeline-denial">"{{ transaction.denial_reason }}"</div>
             {% endif %}
-            <div class="timeline-meta">{{ c.completed_at | humantime }}{% if c.note %} — {{ c.note }}{% endif %}</div>
+            <div class="timeline-meta">{{ transaction.date | humantime }}{% if transaction.note %} — {{ transaction.note }}{% endif %}</div>
           </div>
         </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p class="muted">No chores completed yet. Get to work! 💪</p>
+    <p class="muted">No point history yet. Start completing chores to earn points!</p>
   {% endif %}
 </section>
-
-<section class="card">
-  <h2 class="section-title">🎁 Redemptions</h2>
-  {% if redemptions %}
-    <ul class="timeline">
-      {% for r in redemptions %}
-        <li class="timeline-item
-                   {%- if r.status == 'pending' %} timeline-pending
-                   {%- elif r.status == 'denied' %} timeline-denied
-                   {%- else %} timeline-spend{% endif %}">
-          <span class="timeline-emoji">
-            {%- if r.status == 'pending' %}⏳
-            {%- elif r.status == 'denied' %}✗
-            {%- else %}{{ r.reward.emoji }}{% endif %}
-          </span>
-          <div class="timeline-body">
-            <div class="timeline-title">
-              {{ r.reward.name }}
-              {% if r.status == 'approved' %}
-                <span class="timeline-pts timeline-pts-spend">-{{ r.points_spent }} pts</span>
-              {% elif r.status == 'pending' %}
-                <span class="timeline-pts timeline-pts-pending">waiting for parent</span>
-              {% else %}
-                <span class="timeline-pts timeline-pts-denied">not approved</span>
-              {% endif %}
-            </div>
-            {% if r.status == 'denied' and r.denial_reason %}
-              <div class="timeline-meta timeline-denial">"{{ r.denial_reason }}"</div>
-            {% endif %}
-            <div class="timeline-meta">{{ r.redeemed_at | humantime }}{% if r.note %} — {{ r.note }}{% endif %}</div>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">No rewards redeemed yet — keep stacking those points!</p>
-  {% endif %}
-</section>
-
-{% if deductions %}
-<section class="card">
-  <h2 class="section-title">➖ Deductions</h2>
-  <ul class="timeline">
-    {% for d in deductions %}
-      <li class="timeline-item timeline-deduction">
-        <span class="timeline-emoji">⚠️</span>
-        <div class="timeline-body">
-          <div class="timeline-title">
-            {% if d.category %}<span class="timeline-cat">{{ d.category }}</span>{% endif %}
-            <span class="timeline-pts timeline-pts-deduct">{{ d.points }} pts</span>
-          </div>
-          {% if d.reason %}
-            <div class="timeline-meta timeline-deduction-reason">"{{ d.reason }}"</div>
-          {% endif %}
-          <div class="timeline-meta">{{ d.created_at | humantime }}</div>
-        </div>
-      </li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
 
 {% endblock %}
