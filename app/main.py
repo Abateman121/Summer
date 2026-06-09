@@ -35,8 +35,12 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import achievements, models
 from app.auth import (
     SESSION_KEY,
+    check_login_rate_limit,
+    clear_login_attempts,
     is_authenticated,
     parent_pin,
+    record_failed_login,
+    require_https,
     require_parent,
     session_secret,
 )
@@ -54,16 +58,16 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.3")
+app = FastAPI(title="Summer", version="0.1.4")
 
-# SessionMiddleware signs the cookie using SESSION_SECRET. Set
-# https_only=True in production behind HTTPS.
+# SessionMiddleware signs the cookie using SESSION_SECRET.
+# FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
 app.add_middleware(
     SessionMiddleware,
     secret_key=session_secret(),
     max_age=60 * 60 * 24 * 7,  # 1 week
     same_site="lax",
-    https_only=False,
+    https_only=require_https(),
 )
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -619,8 +623,14 @@ def login_submit(
     request: Request,
     pin: Annotated[str, Form()],
 ) -> RedirectResponse:
+    # Check rate limit before processing
+    check_login_rate_limit(request)
+
     if pin.strip() != parent_pin():
+        record_failed_login(request)
         return _redirect("/login", error="Wrong PIN — try again.")
+
+    clear_login_attempts(request)
     request.session[SESSION_KEY] = True
     return _redirect("/parent", msg="Welcome back, parent!")
 
