@@ -54,6 +54,12 @@
         <label for="rq-note">Note (optional)</label>
         <input type="text" name="note" id="rq-note" maxlength="256" placeholder="Did an extra-good job" autocomplete="off">
       </div>
+      {% if kid_pin_required %}
+      <div class="form-row">
+        <label for="rq-pin">Your PIN (required)</label>
+        <input type="password" name="kid_pin" id="rq-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Enter your PIN" required>
+      </div>
+      {% endif %}
       <button type="submit" class="btn btn-primary">Send to parent for approval</button>
     </form>
     <p class="muted small">A parent will review and award the points.</p>
@@ -78,6 +84,12 @@
         <label for="rr-note">Note (optional)</label>
         <input type="text" name="note" id="rr-note" maxlength="256" placeholder="Please!" autocomplete="off">
       </div>
+      {% if kid_pin_required %}
+      <div class="form-row">
+        <label for="rr-pin">Your PIN (required)</label>
+        <input type="password" name="kid_pin" id="rr-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Enter your PIN" required>
+      </div>
+      {% endif %}
       <button type="submit" class="btn btn-reward">Send to parent for approval</button>
     </form>
     <p class="muted small">A parent will review. They can decline if you don't have enough points yet.</p>

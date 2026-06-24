@@ -30,6 +30,15 @@
     });
   }
 
+  // Sanitize kid PIN fields (rq-pin, rr-pin, rd-pin): only allow digits.
+  document.querySelectorAll('input[name="kid_pin"]').forEach(function (input) {
+    input.setAttribute("inputmode", "numeric");
+    input.setAttribute("pattern", "[0-9]*");
+    input.addEventListener("input", function () {
+      this.value = this.value.replace(/\D/g, "").slice(0, 12);
+    });
+  });
+
   // Dark mode toggle. The inline script in base.html applies the persisted
   // theme synchronously before paint; here we handle the click and persist.
   var themeBtn = document.querySelector(".theme-toggle");

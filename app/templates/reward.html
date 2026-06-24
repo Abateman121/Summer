@@ -32,6 +32,12 @@
         <label for="rd-note">Note (optional)</label>
         <input type="text" name="note" id="rd-note" maxlength="256" placeholder="Please!" autocomplete="off">
       </div>
+      {% if kid_pin_required %}
+      <div class="form-row">
+        <label for="rd-pin">Your PIN (required)</label>
+        <input type="password" name="kid_pin" id="rd-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Enter your PIN" required>
+      </div>
+      {% endif %}
       <button type="submit" class="btn btn-reward">Send to parent for approval</button>
     </form>
     <p class="muted small">A parent will review. They can decline if you don't have enough points yet.</p>

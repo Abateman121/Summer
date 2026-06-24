@@ -144,3 +144,23 @@ def record_failed_login(request: Request) -> None:
 def clear_login_attempts(request: Request) -> None:
     """Clear rate limit state on successful login."""
     _set_login_attempts(request, 0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Kid PIN (global, for kid-facing submissions accountability)
+# ---------------------------------------------------------------------------
+
+
+def require_kid_pin() -> bool:
+    """Whether kid PIN is required for chore/reward submissions.
+
+    Set KID_PIN_REQUIRED=true in .env to enable.
+    """
+    return os.environ.get("KID_PIN_REQUIRED", "false").lower() in ("true", "1", "yes")
+
+
+def kid_pin() -> str | None:
+    """Return the configured kid PIN, or None if not required."""
+    if not require_kid_pin():
+        return None
+    return os.environ.get("KID_PIN", "")

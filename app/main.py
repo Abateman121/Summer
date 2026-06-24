@@ -38,9 +38,11 @@ from app.auth import (
     check_login_rate_limit,
     clear_login_attempts,
     is_authenticated,
+    kid_pin,
     parent_pin,
     record_failed_login,
     require_https,
+    require_kid_pin,
     require_parent,
     session_secret,
 )
@@ -58,7 +60,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.6")
+app = FastAPI(title="Summer", version="0.1.7")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET.
 # FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
@@ -122,6 +124,7 @@ def _week_label(now: datetime | None = None) -> str:
 templates.env.filters["humantime"] = _humanize_timedelta
 templates.env.globals["week_label"] = _week_label
 templates.env.globals["app_version"] = app.version
+templates.env.globals["kid_pin_required"] = require_kid_pin()
 
 # Curated emoji set the parent can pick from for a kid's avatar. Roughly
 # grouped: mammals, bears, misc animals, mythical / dinos, sea / bugs, fun.
@@ -931,15 +934,23 @@ def kid_request_chore(
     kid_id: int,
     chore_id: Annotated[int, Form()],
     note: Annotated[str, Form()] = "",
+    kid_pin: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Kid-facing: log a pending chore completion for a parent to approve.
 
-    No PIN required — kids are the intended users. The completion lands
-    with `status='pending'` and `points_earned=0` (a server-side default
-    would also work, but setting it explicitly is clearer). A parent
-    then approves from `/parent`, where they can also override the
-    chore's default points to reward extra effort.
+    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    The completion lands with `status='pending'` and `points_earned=0`.
+    A parent then approves from `/parent`, where they can also override
+    the chore's default points to reward extra effort.
     """
+    # Validate kid PIN if required
+    if require_kid_pin():
+        configured_pin = kid_pin()
+        if not configured_pin:
+            return _redirect(f"/kid/{kid_id}", error="Kid PIN is not configured. Ask a parent to set it up.")
+        if kid_pin.strip() != configured_pin:
+            return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
@@ -973,20 +984,28 @@ def kid_request_reward(
     kid_id: int,
     reward_id: Annotated[int, Form()],
     note: Annotated[str, Form()] = "",
+    kid_pin: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Kid-facing: log a pending reward redemption for a parent to approve.
 
-    No PIN required — kids are the intended users. The redemption lands
-    with `status='pending'` and `points_spent=0` (the real cost is
-    captured on approval so a reward edit between request and approval
-    doesn't rewrite history). A parent then approves from `/parent`,
-    where the balance is re-checked.
+    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    The redemption lands with `status='pending'` and `points_spent=0`
+    (the real cost is captured on approval). A parent then approves
+    from `/parent`, where the balance is re-checked.
 
     We don't block at request time even if the kid doesn't have enough
     points — the parent might choose to be generous, or the kid might
     earn more before the parent reviews. The parent dashboard shows the
     kid's current balance so they can decide.
     """
+    # Validate kid PIN if required
+    if require_kid_pin():
+        configured_pin = kid_pin()
+        if not configured_pin:
+            return _redirect(f"/kid/{kid_id}", error="Kid PIN is not configured. Ask a parent to set it up.")
+        if kid_pin.strip() != configured_pin:
+            return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
@@ -1138,20 +1157,28 @@ def kid_request_redemption(
     reward_id: int,
     kid_id: Annotated[int, Form()],
     note: Annotated[str, Form()] = "",
+    kid_pin: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Kid-facing: log a pending reward redemption for a parent to approve.
 
-    No PIN required — kids are the intended users. The redemption lands
-    with `status='pending'` and `points_spent=0` (the real cost is
-    captured on approval so a reward edit between request and approval
-    doesn't rewrite the kid's view). A parent then approves from
-    `/parent`, where the balance is re-checked.
+    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    The redemption lands with `status='pending'` and `points_spent=0`
+    (the real cost is captured on approval). A parent then approves
+    from `/parent`, where the balance is re-checked.
 
     We don't block at request time even if the kid doesn't have enough
     points — the parent might choose to be generous, or the kid might
     earn more before the parent reviews. The parent dashboard shows the
     kid's current balance so they can decide.
     """
+    # Validate kid PIN if required
+    if require_kid_pin():
+        configured_pin = kid_pin()
+        if not configured_pin:
+            return _redirect("/rewards", error="Kid PIN is not configured. Ask a parent to set it up.")
+        if kid_pin.strip() != configured_pin:
+            return _redirect("/rewards", error="Wrong PIN. Ask a parent if you forgot it.")
+
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
