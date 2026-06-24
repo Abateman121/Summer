@@ -147,20 +147,14 @@ def clear_login_attempts(request: Request) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Kid PIN (global, for kid-facing submissions accountability)
+# Kid PIN (per-kid, for kid-facing submissions accountability)
 # ---------------------------------------------------------------------------
 
 
 def require_kid_pin() -> bool:
     """Whether kid PIN is required for chore/reward submissions.
 
-    Set KID_PIN_REQUIRED=true in .env to enable.
+    Set KID_PIN_REQUIRED=true in .env to enable. When enabled, each kid
+    must have their own PIN set by a parent on the Manage Kids page.
     """
     return os.environ.get("KID_PIN_REQUIRED", "false").lower() in ("true", "1", "yes")
-
-
-def kid_pin() -> str | None:
-    """Return the configured kid PIN, or None if not required."""
-    if not require_kid_pin():
-        return None
-    return os.environ.get("KID_PIN", "")

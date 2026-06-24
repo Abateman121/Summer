@@ -38,7 +38,6 @@ from app.auth import (
     check_login_rate_limit,
     clear_login_attempts,
     is_authenticated,
-    kid_pin,
     parent_pin,
     record_failed_login,
     require_https,
@@ -60,7 +59,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.7")
+app = FastAPI(title="Summer", version="0.1.8")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET.
 # FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
@@ -938,24 +937,24 @@ def kid_request_chore(
 ) -> RedirectResponse:
     """Kid-facing: log a pending chore completion for a parent to approve.
 
-    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    If KID_PIN_REQUIRED is set, the kid must enter their personal PIN.
     The completion lands with `status='pending'` and `points_earned=0`.
     A parent then approves from `/parent`, where they can also override
     the chore's default points to reward extra effort.
     """
-    # Validate kid PIN if required
-    if require_kid_pin():
-        configured_pin = kid_pin()
-        if not configured_pin:
-            return _redirect(f"/kid/{kid_id}", error="Kid PIN is not configured. Ask a parent to set it up.")
-        if kid_pin.strip() != configured_pin:
-            return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
-
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
         if not kid:
             return _redirect("/", error="Unknown kid.")
+
+        # Validate kid PIN if required
+        if require_kid_pin():
+            if not kid.pin:
+                return _redirect(f"/kid/{kid_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
+            if kid_pin.strip() != kid.pin:
+                return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+
         chore = db.get(models.Chore, chore_id)
         if not chore or not chore.is_active:
             return _redirect(
@@ -988,7 +987,7 @@ def kid_request_reward(
 ) -> RedirectResponse:
     """Kid-facing: log a pending reward redemption for a parent to approve.
 
-    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    If KID_PIN_REQUIRED is set, the kid must enter their personal PIN.
     The redemption lands with `status='pending'` and `points_spent=0`
     (the real cost is captured on approval). A parent then approves
     from `/parent`, where the balance is re-checked.
@@ -998,19 +997,19 @@ def kid_request_reward(
     earn more before the parent reviews. The parent dashboard shows the
     kid's current balance so they can decide.
     """
-    # Validate kid PIN if required
-    if require_kid_pin():
-        configured_pin = kid_pin()
-        if not configured_pin:
-            return _redirect(f"/kid/{kid_id}", error="Kid PIN is not configured. Ask a parent to set it up.")
-        if kid_pin.strip() != configured_pin:
-            return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
-
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
         if not kid:
             return _redirect("/", error="Unknown kid.")
+
+        # Validate kid PIN if required
+        if require_kid_pin():
+            if not kid.pin:
+                return _redirect(f"/kid/{kid_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
+            if kid_pin.strip() != kid.pin:
+                return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+
         reward = db.get(models.Reward, reward_id)
         if not reward or not reward.is_active:
             return _redirect(
@@ -1161,7 +1160,7 @@ def kid_request_redemption(
 ) -> RedirectResponse:
     """Kid-facing: log a pending reward redemption for a parent to approve.
 
-    If KID_PIN_REQUIRED is set, the kid must enter the correct PIN.
+    If KID_PIN_REQUIRED is set, the kid must enter their personal PIN.
     The redemption lands with `status='pending'` and `points_spent=0`
     (the real cost is captured on approval). A parent then approves
     from `/parent`, where the balance is re-checked.
@@ -1171,19 +1170,19 @@ def kid_request_redemption(
     earn more before the parent reviews. The parent dashboard shows the
     kid's current balance so they can decide.
     """
-    # Validate kid PIN if required
-    if require_kid_pin():
-        configured_pin = kid_pin()
-        if not configured_pin:
-            return _redirect("/rewards", error="Kid PIN is not configured. Ask a parent to set it up.")
-        if kid_pin.strip() != configured_pin:
-            return _redirect("/rewards", error="Wrong PIN. Ask a parent if you forgot it.")
-
     db = SessionLocal()
     try:
         kid = db.get(models.Kid, kid_id)
         if not kid:
             return _redirect("/rewards", error="Unknown kid.")
+
+        # Validate kid PIN if required
+        if require_kid_pin():
+            if not kid.pin:
+                return _redirect(f"/reward/{reward_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
+            if kid_pin.strip() != kid.pin:
+                return _redirect(f"/reward/{reward_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+
         reward = db.get(models.Reward, reward_id)
         if not reward or not reward.is_active:
             return _redirect("/rewards", error="That reward isn't available right now.")
@@ -1489,15 +1488,23 @@ def parent_kids_add(
     name: Annotated[str, Form()],
     color: Annotated[str, Form()] = "#3b82f6",
     avatar_emoji: Annotated[str, Form()] = "🙂",
+    pin: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     name = name.strip()
     if not name:
         return _redirect("/parent/kids", error="Kid name is required.")
+    # Store pin only if non-empty digits
+    kid_pin = pin.strip() or None
     db = SessionLocal()
     try:
-        db.add(models.Kid(name=name, color=color, avatar_emoji=avatar_emoji or "🙂"))
+        db.add(models.Kid(
+            name=name,
+            color=color,
+            avatar_emoji=avatar_emoji or "🙂",
+            pin=kid_pin,
+        ))
         db.commit()
-        return _redirect("/parent/kids", msg=f"Added {name}!")
+        return _redirect("/parent/kids", msg=f"Added {name}{' with PIN' if kid_pin else ''}!")
     finally:
         db.close()
 
@@ -1508,6 +1515,8 @@ def parent_kids_edit(
     name: Annotated[str, Form()],
     color: Annotated[str, Form()],
     avatar_emoji: Annotated[str, Form()],
+    pin: Annotated[str, Form()] = "",
+    clear_pin: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     db = SessionLocal()
     try:
@@ -1517,6 +1526,12 @@ def parent_kids_edit(
         kid.name = name.strip() or kid.name
         kid.color = color or kid.color
         kid.avatar_emoji = avatar_emoji or kid.avatar_emoji
+        # Update PIN: clear if checkbox set, else set if provided, else keep
+        if clear_pin == "yes":
+            kid.pin = None
+        elif pin.strip():
+            kid.pin = pin.strip()
+        # (if pin is blank and clear_pin not yes, keep existing PIN)
         db.commit()
         return _redirect("/parent/kids", msg=f"Updated {kid.name}.")
     finally:

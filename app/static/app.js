@@ -30,8 +30,9 @@
     });
   }
 
-  // Sanitize kid PIN fields (rq-pin, rr-pin, rd-pin): only allow digits.
-  document.querySelectorAll('input[name="kid_pin"]').forEach(function (input) {
+  // Sanitize kid PIN fields (rq-pin, rr-pin, rd-pin in submission
+  // forms; k-pin, kp-pin-* in the parent manage-kids form): only allow digits.
+  document.querySelectorAll('input[name="kid_pin"], input[name="pin"]').forEach(function (input) {
     input.setAttribute("inputmode", "numeric");
     input.setAttribute("pattern", "[0-9]*");
     input.addEventListener("input", function () {

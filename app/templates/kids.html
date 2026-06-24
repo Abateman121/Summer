@@ -37,6 +37,10 @@
       <label for="k-color">Card color</label>
       <input type="color" name="color" id="k-color" value="#3b82f6">
     </div>
+    <div class="form-row">
+      <label for="k-pin">PIN <span class="muted">(leave blank for none)</span></label>
+      <input type="password" name="pin" id="k-pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" placeholder="Optional — 4–12 digits">
+    </div>
     <button type="submit" class="btn btn-primary">Add kid</button>
   </form>
 </section>
@@ -75,6 +79,15 @@
                 <label>Card color</label>
                 <input type="color" name="color" value="{{ k.color }}">
               </div>
+              <div class="form-row">
+                <label for="kp-pin-{{ k.id }}">PIN <span class="muted">(leave blank to keep, or enter to change)</span></label>
+                <input type="password" name="pin" id="kp-pin-{{ k.id }}" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" placeholder="{% if k.pin %}•••• (current){% else %}No PIN set{% endif %}">
+              </div>
+              {% if k.pin %}
+              <div class="form-row">
+                <label for="kp-clear-{{ k.id }}"><input type="checkbox" name="clear_pin" id="kp-clear-{{ k.id }}" value="yes"> Remove PIN</label>
+              </div>
+              {% endif %}
               <div class="row-actions">
                 <button type="submit" class="btn btn-primary">Save</button>
               </div>

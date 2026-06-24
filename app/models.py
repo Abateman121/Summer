@@ -26,6 +26,7 @@ class Kid(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#3b82f6")  # hex
     avatar_emoji: Mapped[str] = mapped_column(String(8), default="🙂")
+    pin: Mapped[str | None] = mapped_column(String(12), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
     completions: Mapped[list["ChoreCompletion"]] = relationship(
