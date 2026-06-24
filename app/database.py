@@ -72,6 +72,8 @@ def _run_light_migrations(engine) -> None:
         "ALTER TABLE reward_redemptions ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'approved'",
         "ALTER TABLE reward_redemptions ADD COLUMN denial_reason VARCHAR(256) NOT NULL DEFAULT ''",
         "CREATE INDEX IF NOT EXISTS ix_reward_redemptions_status ON reward_redemptions (status)",
+        # per-kid PIN column (v0.1.8)
+        "ALTER TABLE kids ADD COLUMN pin VARCHAR(12)",
     ]
     with engine.begin() as conn:
         for stmt in statements:
