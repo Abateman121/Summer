@@ -99,4 +99,31 @@
       }
     });
   });
+
+  // Copy buttons: <button data-copy-target="input-id">. navigator.clipboard
+  // only exists on https/localhost, and Summer is often opened over plain
+  // http on the LAN, so fall back to execCommand("copy") on the selected
+  // field. Only claim success when a copy actually happened.
+  document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var input = document.getElementById(btn.getAttribute("data-copy-target"));
+      if (!input) return;
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, input.value.length);
+      var done = function (ok) {
+        btn.textContent = ok ? "✅ Copied" : "Selected: press Ctrl+C (⌘C on Mac)";
+      };
+      var fallback = function () {
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+        done(ok);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(input.value).then(function () { done(true); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+  });
 })();

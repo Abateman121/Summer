@@ -243,14 +243,32 @@ Summer has a small read-only JSON API for dashboards (e.g. Homepage).
   "kids": 2, "pending": 1, "pending_chores": 1, "pending_rewards": 0,
   "chores_today": 3, "points_today": 25, "points_week": 140, "total_balance": 310,
   "leaderboard": [
-    {"id": 1, "name": "Ava", "avatar": "🦊", "balance": 180, "rank": 1,
-     "streak": 4, "points_today": 15, "points_week": 80}
+    {"id": 1, "name": "Ava", "avatar": "🦊", "color": "#3b82f6", "balance": 180,
+     "rank": 1, "streak": 4, "points_today": 15, "points_week": 80}
   ],
-  "version": "0.2.0"
+  "version": "0.2.1"
 }
 ```
 
 "Today" and "week" (Monday to Sunday) use `TZ`. Only approved completions count.
+`rank` is by points earned this week, like the home page leaderboard: it resets
+every Monday, ties share a rank, and spending points never lowers it.
+
+### Kid cards for a dashboard iframe
+
+`/embed/kids` shows just the home page kid cards on a transparent background,
+for an iframe in a dashboard. It needs no key (it is the same public data as the
+home page). Options: `?theme=dark` and `?refresh=<seconds>` (default 60).
+Homepage example:
+
+```yaml
+- Summer:
+    widget:
+      type: iframe
+      name: summer-kids
+      src: http://summer.local:8000/embed/kids?theme=dark
+      classes: h-48
+```
 
 Homepage `customapi` example:
 

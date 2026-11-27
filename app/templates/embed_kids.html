@@ -1,0 +1,18 @@
+<!doctype html>
+{# Bare kid cards for embedding in a dashboard iframe (e.g. Homepage).
+   Same data as the public home page. ?theme=dark|light, ?refresh=<seconds>. #}
+<html lang="en" class="embed-root"{% if theme == "dark" %} data-theme="dark"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="{{ refresh }}">
+  <title>Summer — Kids</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="embed">
+  <section class="kids-grid">
+    {% set link_target = "_blank" %}
+    {% include "_kid_cards.html" %}
+  </section>
+</body>
+</html>

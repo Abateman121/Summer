@@ -1,0 +1,20 @@
+{# Kid cards grid, shared by the home page and /embed/kids.
+   Expects: leaderboard, weekly_earned, weekly_spent; optional link_target. #}
+<div class="grid">
+  {% for entry in leaderboard %}
+    <a class="kid-card" href="/kid/{{ entry.kid.id }}" style="--kid-color: {{ entry.kid.color }}"{% if link_target %} target="{{ link_target }}" rel="noopener"{% endif %}>
+      <div class="kid-card-top">
+        <span class="kid-avatar">{{ entry.kid.avatar_emoji }}</span>
+        <span class="kid-rank">#{{ entry.rank }}{% if entry.medal %} {{ entry.medal }}{% endif %}</span>
+      </div>
+      <div class="kid-name">{{ entry.kid.name }}</div>
+      <div class="kid-balance">{{ entry.balance }} <span class="pts">pts</span></div>
+      <div class="kid-weekly">
+        +{{ weekly_earned.get(entry.kid.id, 0) }} this week
+        {% if weekly_spent.get(entry.kid.id, 0) %}
+          &middot; -{{ weekly_spent.get(entry.kid.id, 0) }} redeemed
+        {% endif %}
+      </div>
+    </a>
+  {% endfor %}
+</div>

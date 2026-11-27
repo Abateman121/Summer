@@ -65,7 +65,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.2.0")
+app = FastAPI(title="Summer", version="0.2.1")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET.
 # FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
@@ -309,22 +309,36 @@ def _kid_weekly_deducted(db: Session) -> dict[int, int]:
 
 
 def _leaderboard(db: Session) -> list[dict]:
-    """Return kids ranked by current balance, descending, with medal flags."""
+    """Return kids ranked by points earned this week (Mon-Sun, local time).
+
+    The ranking resets every Monday because it only looks at this week's
+    approved chore points; spending points never lowers a kid's rank.
+    Kids with the same weekly points share a rank (1, 1, 3), and medals
+    only go to kids who earned something this week.
+    """
     kids = db.execute(select(models.Kid).order_by(models.Kid.name)).scalars().all()
     balances = _kid_balances(db)
+    weekly = _kid_weekly_earned(db)
     ranked = sorted(
         kids,
-        key=lambda k: (-balances.get(k.id, 0), k.name.lower()),
+        key=lambda k: (-weekly.get(k.id, 0), k.name.lower()),
     )
-    medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     result = []
+    rank = 0
+    prev_points = None
     for idx, kid in enumerate(ranked):
+        points = weekly.get(kid.id, 0)
+        if points != prev_points:
+            rank = idx + 1
+            prev_points = points
         result.append(
             {
                 "kid": kid,
                 "balance": balances.get(kid.id, 0),
-                "rank": idx + 1,
-                "medal": medals.get(idx),
+                "weekly": points,
+                "rank": rank,
+                "medal": medals.get(rank) if points > 0 else None,
             }
         )
     return result
@@ -401,6 +415,26 @@ def home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
         leaderboard=leaderboard,
         weekly_earned=weekly_earned,
         weekly_spent=weekly_spent,
+    )
+
+
+@app.get("/embed/kids", response_class=HTMLResponse)
+def embed_kids(request: Request, db: Session = Depends(get_db), theme: str = "light", refresh: int = 60) -> HTMLResponse:
+    """Bare kid cards for a dashboard iframe (e.g. Homepage).
+
+    Same public data as the home page, so no key is needed.
+    `?theme=dark` matches dark dashboards; `?refresh=` is the reload
+    interval in seconds (clamped to 15 s - 1 h).
+    """
+    return _render(
+        request,
+        "embed_kids.html",
+        db,
+        leaderboard=_leaderboard(db),
+        weekly_earned=_kid_weekly_earned(db),
+        weekly_spent=_kid_weekly_spent(db),
+        theme="dark" if theme == "dark" else "light",
+        refresh=min(max(refresh, 15), 3600),
     )
 
 
@@ -1969,6 +2003,7 @@ def api_stats(db: Session = Depends(get_db)) -> JSONResponse:
                 "id": kid.id,
                 "name": kid.name,
                 "avatar": kid.avatar_emoji,
+                "color": kid.color,
                 "balance": row["balance"],
                 "rank": row["rank"],
                 "streak": achievements.compute_streak(completions),

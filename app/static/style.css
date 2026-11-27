@@ -1013,3 +1013,22 @@ code {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* /embed/kids: bare kid cards for a dashboard iframe. Transparent so it
+   sits on the dashboard's own background; a bit more compact. */
+html.embed-root,
+body.embed,
+:root[data-theme="dark"] body.embed {
+  background: transparent;
+  min-height: 0;
+  padding: 4px;
+  margin: 0;
+}
+.embed .kids-grid .grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.embed .kid-card { padding: 10px; }
+.embed .kid-avatar { font-size: 1.6rem; }
+.embed .kid-balance { font-size: 1.4rem; }
+:root[data-theme="dark"] .embed .kid-card { background: rgba(255, 255, 255, 0.05); box-shadow: none; }
