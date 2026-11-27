@@ -19,7 +19,7 @@
         <span class="leader-medal">{{ entry.medal or "" }}</span>
         <span class="leader-avatar">{{ entry.kid.avatar_emoji }}</span>
         <a class="leader-name" href="/kid/{{ entry.kid.id }}">{{ entry.kid.name }}</a>
-        <span class="leader-pts">+{{ entry.weekly }} pts this week</span>
+        <span class="leader-pts">{{ '%+d' % entry.weekly }} pts this week</span>
       </li>
     {% endfor %}
   </ol>

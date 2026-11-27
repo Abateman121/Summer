@@ -244,15 +244,17 @@ Summer has a small read-only JSON API for dashboards (e.g. Homepage).
   "chores_today": 3, "points_today": 25, "points_week": 140, "total_balance": 310,
   "leaderboard": [
     {"id": 1, "name": "Ava", "avatar": "🦊", "color": "#3b82f6", "balance": 180,
-     "rank": 1, "streak": 4, "points_today": 15, "points_week": 80}
+     "rank": 1, "streak": 4, "points_today": 15, "points_week": 80,
+     "deducted_week": -10, "score_week": 70}
   ],
-  "version": "0.2.1"
+  "version": "0.2.2"
 }
 ```
 
 "Today" and "week" (Monday to Sunday) use `TZ`. Only approved completions count.
-`rank` is by points earned this week, like the home page leaderboard: it resets
-every Monday, ties share a rank, and spending points never lowers it.
+`rank` follows the home page leaderboard: this week's score (`score_week` =
+points earned this week + `deducted_week`, which is negative). It resets every
+Monday, ties share a rank, and spending points never lowers it.
 
 ### Kid cards for a dashboard iframe
 

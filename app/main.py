@@ -65,7 +65,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.2.1")
+app = FastAPI(title="Summer", version="0.2.2")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET.
 # FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
@@ -309,34 +309,42 @@ def _kid_weekly_deducted(db: Session) -> dict[int, int]:
 
 
 def _leaderboard(db: Session) -> list[dict]:
-    """Return kids ranked by points earned this week (Mon-Sun, local time).
+    """Return kids ranked by this week's score (Mon-Sun, local time).
 
-    The ranking resets every Monday because it only looks at this week's
-    approved chore points; spending points never lowers a kid's rank.
-    Kids with the same weekly points share a rank (1, 1, 3), and medals
-    only go to kids who earned something this week.
+    Score = approved chore points earned this week + this week's
+    deductions (which are negative), so behavior deductions cost rank.
+    The ranking resets every Monday; spending points never lowers a
+    kid's rank. Kids with the same score share a rank (1, 1, 3), and
+    medals only go to kids whose score is above 0.
     """
     kids = db.execute(select(models.Kid).order_by(models.Kid.name)).scalars().all()
     balances = _kid_balances(db)
-    weekly = _kid_weekly_earned(db)
+    earned = _kid_weekly_earned(db)
+    deducted = _kid_weekly_deducted(db)
+
+    def score(kid_id: int) -> int:
+        return earned.get(kid_id, 0) + deducted.get(kid_id, 0)
+
     ranked = sorted(
         kids,
-        key=lambda k: (-weekly.get(k.id, 0), k.name.lower()),
+        key=lambda k: (-score(k.id), k.name.lower()),
     )
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     result = []
     rank = 0
-    prev_points = None
+    prev_score = None
     for idx, kid in enumerate(ranked):
-        points = weekly.get(kid.id, 0)
-        if points != prev_points:
+        points = score(kid.id)
+        if points != prev_score:
             rank = idx + 1
-            prev_points = points
+            prev_score = points
         result.append(
             {
                 "kid": kid,
                 "balance": balances.get(kid.id, 0),
                 "weekly": points,
+                "weekly_earned": earned.get(kid.id, 0),
+                "weekly_deducted": deducted.get(kid.id, 0),
                 "rank": rank,
                 "medal": medals.get(rank) if points > 0 else None,
             }
@@ -2009,6 +2017,8 @@ def api_stats(db: Session = Depends(get_db)) -> JSONResponse:
                 "streak": achievements.compute_streak(completions),
                 "points_today": points_today.get(kid.id, 0),
                 "points_week": points_week.get(kid.id, 0),
+                "deducted_week": row["weekly_deducted"],
+                "score_week": row["weekly"],
             }
         )
 
