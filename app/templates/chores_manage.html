@@ -11,6 +11,7 @@
     <a href="/parent/categories">Categories</a>
     <a href="/parent/rewards">Rewards</a>
     <a href="/parent/history">History</a>
+    <a href="/parent/api-keys">API keys</a>
   </nav>
 </header>
 
@@ -89,7 +90,7 @@
               </div>
             </form>
             <form method="post" action="/parent/chores/{{ c.id }}/delete"
-                  class="delete-form" data-confirm="Delete chore {{ c.name }}? Past completions stay in history.">
+                  class="delete-form" data-confirm="Delete chore {{ c.name }}? Only chores with no history can be deleted; untick Active to hide one that has history.">
               <button type="submit" class="btn btn-danger">🗑️ Delete chore</button>
             </form>
           </details>

@@ -6,8 +6,11 @@ parent enters the PIN on /login, we set a session flag that the
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
+import threading
+import time
 from datetime import timedelta
 
 from fastapi import HTTPException, Request, status
@@ -16,7 +19,6 @@ SESSION_KEY = "parent_authenticated"
 SESSION_MAX_AGE_SECONDS = int(timedelta(days=7).total_seconds())
 
 _INSECURE_SECRET = "dev-only-insecure-secret"
-_RATE_LIMIT_KEY = "login_attempts"
 
 
 def parent_pin() -> str:
@@ -71,79 +73,62 @@ def require_parent(request: Request) -> None:
 # Rate limiting
 # ---------------------------------------------------------------------------
 
-# In-memory store for failed login attempts. Key = IP address, value =
-# (count, first_failure_timestamp). This is per-process; in a multi-worker
-# deployment you'd want Redis, but for a home/server app on a single process
-# this is sufficient. Wipes on restart but that's fine for a brute-force
-# deterrent.
+# In-memory store of failed PIN attempts: key -> (count, first_failure_time).
+# Keys are "login:<client ip>" for the parent PIN and "kid:<kid id>" for kid
+# PINs. Module-level (not request.state, which is per request) so it really
+# persists between attempts. Per-process: fine for the single uvicorn
+# process this app runs as; it resets on restart, which is acceptable for a
+# brute-force deterrent.
 _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 300  # 5 minutes
+_attempts: dict[str, tuple[int, float]] = {}
+_attempts_lock = threading.Lock()
 
 
-def _get_login_attempts(request: Request) -> tuple[int, float]:
-    """Return (count, first_failure_timestamp) for the current IP."""
-    raw = request.state.__dict__.get(_RATE_LIMIT_KEY)
-    if raw is None:
-        return 0, 0.0
-    return raw  # type: ignore
+def client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
-def _set_login_attempts(request: Request, count: int, first_failure: float) -> None:
-    request.state.__dict__[_RATE_LIMIT_KEY] = (count, first_failure)
-
-
-def check_login_rate_limit(request: Request) -> None:
-    """Raise 429 if this IP has too many failed attempts.
-
-    Call at the start of the login POST handler.
-    """
-    import time
-
-    count, first_failure = _get_login_attempts(request)
-    if count == 0:
-        return  # No history, no problem
-
-    elapsed = time.time() - first_failure
-    if elapsed > _LOCKOUT_SECONDS:
-        # Lockout expired; reset
-        _set_login_attempts(request, 0, 0.0)
-        return
-
+def lockout_remaining(key: str) -> int:
+    """Seconds left on this key's lockout, or 0 if it may try again."""
+    now = time.time()
+    with _attempts_lock:
+        count, first_failure = _attempts.get(key, (0, 0.0))
+        if count and now - first_failure > _LOCKOUT_SECONDS:
+            # Window expired; forget it
+            _attempts.pop(key, None)
+            return 0
     if count >= _MAX_ATTEMPTS:
-        remaining = int(_LOCKOUT_SECONDS - elapsed)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many failed attempts. Try again in {remaining} seconds.",
-        )
+        return max(1, int(_LOCKOUT_SECONDS - (now - first_failure)))
+    return 0
 
 
-def record_failed_login(request: Request) -> None:
-    """Record a failed PIN attempt for rate limiting.
-
-    Call after an incorrect PIN is submitted.
-    """
-    import time
-
-    count, first_failure = _get_login_attempts(request)
-    if count == 0:
-        first_failure = time.time()
-    count += 1
-    _set_login_attempts(request, count, first_failure)
-
-    if count >= _MAX_ATTEMPTS:
-        remaining = _LOCKOUT_SECONDS - int(time.time() - first_failure)
+def record_failed_attempt(key: str) -> None:
+    """Count a wrong PIN for this key (call after a failed check)."""
+    now = time.time()
+    with _attempts_lock:
+        # Drop expired entries so the dict can't grow without bound
+        for k in [k for k, (_, t) in _attempts.items() if now - t > _LOCKOUT_SECONDS]:
+            del _attempts[k]
+        count, first_failure = _attempts.get(key, (0, now))
+        count += 1
+        _attempts[key] = (count, first_failure)
+    if count == _MAX_ATTEMPTS:
         logging.getLogger("summer").warning(
-            "Parent login rate limited (IP: %s). Attempts: %d. "
-            "Locked out for %d seconds.",
-            request.client.host if request.client else "unknown",
-            count,
-            max(0, remaining),
+            "PIN attempts locked out for %s after %d failures (%d seconds).",
+            key, count, _LOCKOUT_SECONDS,
         )
 
 
-def clear_login_attempts(request: Request) -> None:
-    """Clear rate limit state on successful login."""
-    _set_login_attempts(request, 0, 0.0)
+def clear_failed_attempts(key: str) -> None:
+    """Forget failures for this key (call after a correct PIN)."""
+    with _attempts_lock:
+        _attempts.pop(key, None)
+
+
+def pin_matches(given: str, expected: str) -> bool:
+    """Constant-time PIN comparison."""
+    return hmac.compare_digest(given.strip().encode("utf-8"), expected.encode("utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -158,3 +143,44 @@ def require_kid_pin() -> bool:
     must have their own PIN set by a parent on the Manage Kids page.
     """
     return os.environ.get("KID_PIN_REQUIRED", "false").lower() in ("true", "1", "yes")
+
+
+# ---------------------------------------------------------------------------
+# API keys (read-only JSON API, e.g. for dashboard widgets)
+# ---------------------------------------------------------------------------
+
+API_KEY_PREFIX = "smr_"
+
+
+def generate_api_key() -> str:
+    """Return a new random API key. Only its hash is ever stored."""
+    import secrets
+
+    return API_KEY_PREFIX + secrets.token_urlsafe(32)
+
+
+def hash_api_key(key: str) -> str:
+    """SHA-256 hex digest of a key.
+
+    A plain hash (no salt / slow KDF) is fine here: keys are 256-bit
+    random values, not human-chosen passwords, so they can't be guessed
+    from the hash.
+    """
+    import hashlib
+
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def api_key_from_request(request: Request) -> str | None:
+    """Read the key from `X-API-Key` or `Authorization: Bearer <key>`.
+
+    Query-string keys are deliberately not accepted: URLs end up in
+    proxy and browser logs.
+    """
+    key = request.headers.get("x-api-key")
+    if key:
+        return key.strip()
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return None

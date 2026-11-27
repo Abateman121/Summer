@@ -16,6 +16,7 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 from typing import Annotated, Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
@@ -35,11 +36,16 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import achievements, models
 from app.auth import (
     SESSION_KEY,
-    check_login_rate_limit,
-    clear_login_attempts,
+    api_key_from_request,
+    clear_failed_attempts,
+    client_ip,
+    generate_api_key,
+    hash_api_key,
     is_authenticated,
+    lockout_remaining,
     parent_pin,
-    record_failed_login,
+    pin_matches,
+    record_failed_attempt,
     require_https,
     require_kid_pin,
     require_parent,
@@ -59,7 +65,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-app = FastAPI(title="Summer", version="0.1.8")
+app = FastAPI(title="Summer", version="0.2.0")
 
 # SessionMiddleware signs the cookie using SESSION_SECRET.
 # FORCE_HTTPS=true enables secure/HTTPS-only cookies when behind a proxy.
@@ -341,14 +347,41 @@ def _render(
 
 
 def _redirect(path: str, msg: str | None = None, error: str | None = None) -> RedirectResponse:
-    qs = []
-    if msg:
-        qs.append(f"msg={msg}")
-    if error:
-        qs.append(f"error={error}")
+    # urlencode so "+", "&", "#" and "%" in names/messages survive the trip
+    qs = {k: v for k, v in (("msg", msg), ("error", error)) if v}
     if qs:
-        path = f"{path}?{'&'.join(qs)}"
+        path = f"{path}?{urlencode(qs)}"
     return RedirectResponse(url=path, status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _kid_pin_error(kid: models.Kid, given: str) -> str | None:
+    """Check a kid's PIN when KID_PIN_REQUIRED is on.
+
+    Returns an error message for the kid, or None if they may proceed.
+    Wrong PINs count toward a per-kid lockout so siblings can't guess.
+    """
+    if not require_kid_pin():
+        return None
+    if not kid.pin:
+        return "Your PIN hasn't been set up. Ask a parent to assign you one."
+    key = f"kid:{kid.id}"
+    wait = lockout_remaining(key)
+    if wait:
+        return f"Too many wrong PINs. Try again in {wait // 60 + 1} min, or ask a parent."
+    if not pin_matches(given, kid.pin):
+        record_failed_attempt(key)
+        return "Wrong PIN. Ask a parent if you forgot it."
+    clear_failed_attempts(key)
+    return None
+
+
+def _kid_balance(db: Session, kid_id: int) -> int:
+    """One kid's current balance: approved earnings - approved spending + deductions.
+
+    Same math as the kid page; every balance check must use this so
+    deductions are never left out.
+    """
+    return _kid_balances(db).get(kid_id, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +604,7 @@ def printable_summary(request: Request, db: Session = Depends(get_db)) -> HTMLRe
     rows = db.execute(
         select(models.ChoreCompletion)
         .where(models.ChoreCompletion.completed_at >= week_start_utc)
+        .where(models.ChoreCompletion.status == models.STATUS_APPROVED)
         .order_by(models.ChoreCompletion.completed_at.asc())
     ).scalars().all()
     for c in rows:
@@ -625,14 +659,16 @@ def login_submit(
     request: Request,
     pin: Annotated[str, Form()],
 ) -> RedirectResponse:
-    # Check rate limit before processing
-    check_login_rate_limit(request)
+    key = f"login:{client_ip(request)}"
+    wait = lockout_remaining(key)
+    if wait:
+        return _redirect("/login", error=f"Too many wrong PINs. Try again in {wait // 60 + 1} min.")
 
-    if pin.strip() != parent_pin():
-        record_failed_login(request)
+    if not pin_matches(pin, parent_pin()):
+        record_failed_attempt(key)
         return _redirect("/login", error="Wrong PIN — try again.")
 
-    clear_login_attempts(request)
+    clear_failed_attempts(key)
     request.session[SESSION_KEY] = True
     return _redirect("/parent", msg="Welcome back, parent!")
 
@@ -880,22 +916,8 @@ def parent_redeem(
         effective_cost = cost_override if cost_override is not None else reward.cost
         effective_cost = max(1, effective_cost)
 
-        # Check balance first
-        completions = (
-            db.execute(
-                select(models.ChoreCompletion).where(models.ChoreCompletion.kid_id == kid.id)
-            )
-            .scalars()
-            .all()
-        )
-        redemptions = (
-            db.execute(
-                select(models.RewardRedemption).where(models.RewardRedemption.kid_id == kid.id)
-            )
-            .scalars()
-            .all()
-        )
-        balance = achievements.compute_balance(completions, redemptions)
+        # Check balance first (including deductions)
+        balance = _kid_balance(db, kid.id)
         if balance < effective_cost:
             return _redirect(
                 "/parent",
@@ -948,12 +970,9 @@ def kid_request_chore(
         if not kid:
             return _redirect("/", error="Unknown kid.")
 
-        # Validate kid PIN if required
-        if require_kid_pin():
-            if not kid.pin:
-                return _redirect(f"/kid/{kid_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
-            if kid_pin.strip() != kid.pin:
-                return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+        pin_error = _kid_pin_error(kid, kid_pin)
+        if pin_error:
+            return _redirect(f"/kid/{kid_id}", error=pin_error)
 
         chore = db.get(models.Chore, chore_id)
         if not chore or not chore.is_active:
@@ -1003,12 +1022,9 @@ def kid_request_reward(
         if not kid:
             return _redirect("/", error="Unknown kid.")
 
-        # Validate kid PIN if required
-        if require_kid_pin():
-            if not kid.pin:
-                return _redirect(f"/kid/{kid_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
-            if kid_pin.strip() != kid.pin:
-                return _redirect(f"/kid/{kid_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+        pin_error = _kid_pin_error(kid, kid_pin)
+        if pin_error:
+            return _redirect(f"/kid/{kid_id}", error=pin_error)
 
         reward = db.get(models.Reward, reward_id)
         if not reward or not reward.is_active:
@@ -1176,12 +1192,9 @@ def kid_request_redemption(
         if not kid:
             return _redirect("/rewards", error="Unknown kid.")
 
-        # Validate kid PIN if required
-        if require_kid_pin():
-            if not kid.pin:
-                return _redirect(f"/reward/{reward_id}", error="Your PIN hasn't been set up. Ask a parent to assign you one.")
-            if kid_pin.strip() != kid.pin:
-                return _redirect(f"/reward/{reward_id}", error="Wrong PIN. Ask a parent if you forgot it.")
+        pin_error = _kid_pin_error(kid, kid_pin)
+        if pin_error:
+            return _redirect(f"/reward/{reward_id}", error=pin_error)
 
         reward = db.get(models.Reward, reward_id)
         if not reward or not reward.is_active:
@@ -1226,22 +1239,8 @@ def parent_approve_redemption(redemption_id: int) -> RedirectResponse:
             return _redirect("/parent", error="That reward is gone.")
         # Re-compute the kid's balance from the current state. Pending
         # redemptions are NOT subtracted yet, so the parent can approve
-        # them in any order as long as each fits.
-        completions = (
-            db.execute(
-                select(models.ChoreCompletion).where(models.ChoreCompletion.kid_id == r.kid_id)
-            )
-            .scalars()
-            .all()
-        )
-        redemptions = (
-            db.execute(
-                select(models.RewardRedemption).where(models.RewardRedemption.kid_id == r.kid_id)
-            )
-            .scalars()
-            .all()
-        )
-        balance = achievements.compute_balance(completions, redemptions)
+        # them in any order as long as each fits. Deductions count.
+        balance = _kid_balance(db, r.kid_id)
         if balance < reward.cost:
             return _redirect(
                 "/parent",
@@ -1322,7 +1321,7 @@ def parent_deductions_add(
             raw = int(points)
         except ValueError:
             return _redirect(
-                "/parent", error="Points must be a whole number, or blank."
+                "/parent", error="Points must be a whole number."
             )
         if raw == 0:
             return _redirect("/parent", error="Deduction must be non-zero.")
@@ -1632,6 +1631,19 @@ def parent_chores_delete(chore_id: int) -> RedirectResponse:
         chore = db.get(models.Chore, chore_id)
         if not chore:
             return _redirect("/parent/chores", error="Chore not found.")
+        # Deleting would cascade to its completions, wiping that history
+        # and the points earned from it. Only allow it for unused chores.
+        used = db.execute(
+            select(func.count(models.ChoreCompletion.id)).where(models.ChoreCompletion.chore_id == chore_id)
+        ).scalar_one()
+        if used:
+            return _redirect(
+                "/parent/chores",
+                error=(
+                    f"'{chore.name}' has {used} entr{'y' if used == 1 else 'ies'} in history, so it can't be "
+                    "deleted without erasing those points. Untick Active to hide it instead."
+                ),
+            )
         name = chore.name
         db.delete(chore)
         db.commit()
@@ -1712,6 +1724,19 @@ def parent_rewards_delete(reward_id: int) -> RedirectResponse:
         reward = db.get(models.Reward, reward_id)
         if not reward:
             return _redirect("/parent/rewards", error="Reward not found.")
+        # Deleting would cascade to its redemptions, wiping that history
+        # and refunding the points spent. Only allow it for unused rewards.
+        used = db.execute(
+            select(func.count(models.RewardRedemption.id)).where(models.RewardRedemption.reward_id == reward_id)
+        ).scalar_one()
+        if used:
+            return _redirect(
+                "/parent/rewards",
+                error=(
+                    f"'{reward.name}' has {used} redemption{'' if used == 1 else 's'} in history, so it can't be "
+                    "deleted without refunding those points. Untick Active to hide it instead."
+                ),
+            )
         name = reward.name
         db.delete(reward)
         db.commit()
@@ -1819,6 +1844,153 @@ def parent_categories_delete(category_id: int) -> RedirectResponse:
         return _redirect("/parent/categories", msg=f"Removed '{name}'.")
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# API keys (parent-managed) and the read-only JSON API
+# ---------------------------------------------------------------------------
+
+
+def _api_keys_page(request: Request, db: Session, new_key: str | None = None, new_key_name: str = "") -> HTMLResponse:
+    keys = db.execute(select(models.ApiKey).order_by(models.ApiKey.created_at.desc())).scalars().all()
+    return _render(request, "api_keys.html", db, keys=keys, new_key=new_key, new_key_name=new_key_name)
+
+
+@app.get("/parent/api-keys", response_class=HTMLResponse, dependencies=[Depends(_require_parent_or_redirect)])
+def parent_api_keys(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    return _api_keys_page(request, db)
+
+
+@app.post("/parent/api-keys/add", response_class=HTMLResponse, dependencies=[Depends(_require_parent_or_redirect)])
+def parent_api_keys_add(
+    request: Request,
+    name: Annotated[str, Form()],
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    name = name.strip()
+    if not name:
+        return _redirect("/parent/api-keys", error="Give the key a name, e.g. Homepage.")
+    key = generate_api_key()
+    db.add(models.ApiKey(name=name[:64], key_hash=hash_api_key(key), prefix=key[:8]))
+    db.commit()
+    # Rendered directly (not a redirect) so the key never lands in a URL.
+    # This is the only time the plain key is ever shown.
+    response = _api_keys_page(request, db, new_key=key, new_key_name=name)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/parent/api-keys/{key_id}/delete", dependencies=[Depends(_require_parent_or_redirect)])
+def parent_api_keys_delete(key_id: int) -> RedirectResponse:
+    db = SessionLocal()
+    try:
+        key = db.get(models.ApiKey, key_id)
+        if not key:
+            return _redirect("/parent/api-keys", error="Key not found.")
+        name = key.name
+        db.delete(key)
+        db.commit()
+        return _redirect("/parent/api-keys", msg=f"Revoked key '{name}'.")
+    finally:
+        db.close()
+
+
+# Writing last_used_at on every call would mean a DB write every few
+# seconds from a dashboard; once a minute is plenty for "is this key used?".
+_API_KEY_TOUCH_INTERVAL = timedelta(minutes=1)
+
+
+def _require_api_key(request: Request, db: Session = Depends(get_db)) -> models.ApiKey:
+    """FastAPI dependency: 401 unless the request carries a valid API key."""
+    key = api_key_from_request(request)
+    row = None
+    if key:
+        row = db.execute(
+            select(models.ApiKey).where(models.ApiKey.key_hash == hash_api_key(key))
+        ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid API key. Send it as 'X-API-Key: <key>' or 'Authorization: Bearer <key>'.",
+        )
+    now = _utcnow()
+    last = row.last_used_at
+    if last is not None and last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    if last is None or now - last > _API_KEY_TOUCH_INTERVAL:
+        row.last_used_at = now
+        db.commit()
+    return row
+
+
+@app.get("/api/v1/stats", dependencies=[Depends(_require_api_key)])
+def api_stats(db: Session = Depends(get_db)) -> JSONResponse:
+    """Read-only summary for dashboards (e.g. a Homepage customapi widget).
+
+    Flat totals first (easy to map), then a per-kid list ordered like the
+    leaderboard.
+    """
+    tz = achievements._local_tz()
+    today_start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    week_start, week_end = achievements.week_bounds()
+
+    def _approved_points_since(start: datetime, end: datetime | None = None) -> dict[int, int]:
+        q = (
+            select(models.ChoreCompletion.kid_id, func.coalesce(func.sum(models.ChoreCompletion.points_earned), 0))
+            .where(models.ChoreCompletion.status == models.STATUS_APPROVED)
+            .where(models.ChoreCompletion.completed_at >= start)
+        )
+        if end is not None:
+            q = q.where(models.ChoreCompletion.completed_at < end)
+        return dict(db.execute(q.group_by(models.ChoreCompletion.kid_id)).all())
+
+    points_today = _approved_points_since(today_start)
+    points_week = _approved_points_since(week_start, week_end)
+    chores_today = db.execute(
+        select(func.count(models.ChoreCompletion.id))
+        .where(models.ChoreCompletion.status == models.STATUS_APPROVED)
+        .where(models.ChoreCompletion.completed_at >= today_start)
+    ).scalar_one()
+    pending_chores = db.execute(
+        select(func.count(models.ChoreCompletion.id)).where(models.ChoreCompletion.status == models.STATUS_PENDING)
+    ).scalar_one()
+    pending_rewards = db.execute(
+        select(func.count(models.RewardRedemption.id)).where(models.RewardRedemption.status == models.STATUS_PENDING)
+    ).scalar_one()
+
+    kids = []
+    for row in _leaderboard(db):
+        kid = row["kid"]
+        completions = db.execute(
+            select(models.ChoreCompletion).where(models.ChoreCompletion.kid_id == kid.id)
+        ).scalars().all()
+        kids.append(
+            {
+                "id": kid.id,
+                "name": kid.name,
+                "avatar": kid.avatar_emoji,
+                "balance": row["balance"],
+                "rank": row["rank"],
+                "streak": achievements.compute_streak(completions),
+                "points_today": points_today.get(kid.id, 0),
+                "points_week": points_week.get(kid.id, 0),
+            }
+        )
+
+    return JSONResponse(
+        {
+            "kids": len(kids),
+            "pending": pending_chores + pending_rewards,
+            "pending_chores": pending_chores,
+            "pending_rewards": pending_rewards,
+            "chores_today": chores_today,
+            "points_today": sum(points_today.values()),
+            "points_week": sum(points_week.values()),
+            "total_balance": sum(k["balance"] for k in kids),
+            "leaderboard": kids,
+            "version": app.version,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

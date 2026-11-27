@@ -228,6 +228,60 @@ Summer/
 
 ---
 
+## API
+
+Summer has a small read-only JSON API for dashboards (e.g. Homepage).
+
+1. Log in as the parent and open **API keys** (`/parent/api-keys`).
+2. Create a key and copy it. It is shown once; only a SHA-256 hash is stored. Revoke keys on the same page.
+3. Call the API with the key in a header (`X-API-Key: <key>` or `Authorization: Bearer <key>`). Keys in the URL are not accepted.
+
+`GET /api/v1/stats` returns:
+
+```json
+{
+  "kids": 2, "pending": 1, "pending_chores": 1, "pending_rewards": 0,
+  "chores_today": 3, "points_today": 25, "points_week": 140, "total_balance": 310,
+  "leaderboard": [
+    {"id": 1, "name": "Ava", "avatar": "🦊", "balance": 180, "rank": 1,
+     "streak": 4, "points_today": 15, "points_week": 80}
+  ],
+  "version": "0.2.0"
+}
+```
+
+"Today" and "week" (Monday to Sunday) use `TZ`. Only approved completions count.
+
+Homepage `customapi` example:
+
+```yaml
+- Summer:
+    href: http://summer.local:8000
+    widgets:
+      - type: customapi
+        url: http://summer:8000/api/v1/stats
+        headers:
+          X-API-Key: "{{HOMEPAGE_VAR_SUMMER_KEY}}"
+        mappings:
+          - field: points_today
+            label: Points today
+          - field: chores_today
+            label: Chores today
+          - field: pending
+            label: To approve
+      - type: customapi
+        url: http://summer:8000/api/v1/stats
+        headers:
+          X-API-Key: "{{HOMEPAGE_VAR_SUMMER_KEY}}"
+        display: dynamic-list
+        mappings:
+          items: leaderboard
+          name: name
+          label: balance
+```
+
+---
+
 ## Future
 
 The full design notes for these are in [CLAUDE.md](CLAUDE.md) under

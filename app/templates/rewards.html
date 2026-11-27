@@ -11,6 +11,7 @@
     <a href="/parent/categories">Categories</a>
     <a href="/parent/rewards" class="active">Rewards</a>
     <a href="/parent/history">History</a>
+    <a href="/parent/api-keys">API keys</a>
   </nav>
 </header>
 
@@ -95,7 +96,7 @@
               </div>
             </form>
             <form method="post" action="/parent/rewards/{{ r.id }}/delete"
-                  class="delete-form" data-confirm="Delete reward {{ r.name }}? Past redemptions stay in history.">
+                  class="delete-form" data-confirm="Delete reward {{ r.name }}? Only rewards with no history can be deleted; untick Active to hide one that has history.">
               <button type="submit" class="btn btn-danger">🗑️ Delete reward</button>
             </form>
           </details>

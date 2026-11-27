@@ -1007,3 +1007,9 @@ code {
   margin-top: auto;
 }
 .reward-cost .pts { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+
+/* API keys page: let the example command wrap on phones */
+.api-example {
+  white-space: pre-wrap;
+  word-break: break-all;
+}

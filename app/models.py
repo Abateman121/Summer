@@ -183,3 +183,21 @@ class Deduction(Base):
     )
 
     kid: Mapped[Kid] = relationship(back_populates="deductions")
+
+
+class ApiKey(Base):
+    """A key for read-only API access (e.g. a Homepage dashboard widget).
+
+    Only a SHA-256 hash of the key is stored; the plain key is shown to the
+    parent once, at creation. `prefix` (the first characters of the key) is
+    kept in clear so the parent can tell keys apart in the list.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)

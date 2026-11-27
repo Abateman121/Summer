@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}API Keys — Summer{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <h1>🔑 API keys</h1>
+  <nav class="admin-nav">
+    <a href="/parent">Quick actions</a>
+    <a href="/parent/kids">Kids</a>
+    <a href="/parent/chores">Chores</a>
+    <a href="/parent/categories">Categories</a>
+    <a href="/parent/rewards">Rewards</a>
+    <a href="/parent/history">History</a>
+    <a href="/parent/api-keys" class="active">API keys</a>
+  </nav>
+</header>
+
+{% if new_key %}
+<section class="card">
+  <h2 class="section-title">✅ New key "{{ new_key_name }}"</h2>
+  <p>Copy it now. It is only shown once; Summer stores just a hash of it.</p>
+  <div class="form-row">
+    <label for="new-key">Key</label>
+    <input type="text" id="new-key" value="{{ new_key }}" readonly autocomplete="off" spellcheck="false"
+           onclick="this.select()">
+  </div>
+  <button type="button" class="btn btn-primary"
+          onclick="var i=document.getElementById('new-key');i.select();navigator.clipboard&&navigator.clipboard.writeText(i.value);this.textContent='Copied';">
+    📋 Copy key
+  </button>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="section-title">➕ Create a key</h2>
+  <p class="muted small">
+    Keys give read-only access to <code>/api/v1/stats</code> (kids, balances, streaks, points and pending
+    approvals), for example for a Homepage dashboard widget. They cannot change anything.
+  </p>
+  <form method="post" action="/parent/api-keys/add" class="inline-form">
+    <div class="form-row">
+      <label for="key-name">Name</label>
+      <input type="text" name="name" id="key-name" required maxlength="64" placeholder="e.g. Homepage" autocomplete="off">
+    </div>
+    <button type="submit" class="btn btn-primary">Create key</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title">Current keys</h2>
+  {% if keys %}
+    <ul class="manage-list">
+      {% for k in keys %}
+        <li class="manage-row">
+          <details class="manage-edit">
+            <summary class="manage-summary">
+              <span class="manage-avatar">🔑</span>
+              <span class="manage-name">{{ k.name }} <span class="muted small">{{ k.prefix }}…</span></span>
+              <span class="manage-balance muted small">
+                {% if k.last_used_at %}Last used {{ k.last_used_at | humantime }}{% else %}Never used{% endif %}
+              </span>
+              <span class="manage-chevron">⋯</span>
+            </summary>
+            <p class="muted small">Created {{ k.created_at | humantime }}.</p>
+            <form method="post" action="/parent/api-keys/{{ k.id }}/delete"
+                  class="delete-form"
+                  data-confirm="Revoke key '{{ k.name }}'? Anything using it stops working.">
+              <button type="submit" class="btn btn-danger">🗑️ Revoke key</button>
+            </form>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No keys yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="section-title">Using the API</h2>
+  <p class="muted small">Send the key in a header:</p>
+  <pre class="small api-example">curl -H "X-API-Key: smr_…" {{ request.base_url }}api/v1/stats</pre>
+  <p class="muted small"><code>Authorization: Bearer smr_…</code> works too. Keys in the URL are not accepted.</p>
+</section>
+
+{% endblock %}
